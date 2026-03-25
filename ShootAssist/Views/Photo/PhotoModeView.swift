@@ -1,0 +1,470 @@
+import SwiftUI
+import PhotosUI
+import StoreKit
+
+struct PhotoModeView: View {
+    @StateObject private var cameraVM = CameraViewModel()
+    @StateObject private var photoVM = PhotoModeViewModel()
+    @Environment(\.dismiss) private var dismiss
+    @State private var showShareSheet = false
+    @State private var shareButtonVisible = false
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                // MARK: - 顶部导航栏
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.white).frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("返回")
+                    Spacer()
+                    Text("照片模式")
+                        .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                    Spacer()
+                    Button(action: { cameraVM.toggleFlash() }) {
+                        Image(systemName: cameraVM.flashIcon)
+                            .font(.system(size: 18)).foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("闪光灯")
+                    .accessibilityValue(cameraVM.flashMode == .off ? "关闭" : cameraVM.flashMode == .on ? "开启" : "自动")
+                    .accessibilityHint("连续点击切换闪光灯模式")
+                }
+                .padding(.horizontal, 8).background(Color.black)
+
+                // MARK: - 模式切换 Tab + 拍同款换图按钮
+                HStack(spacing: 8) {
+                    PhotoSubModeTab(selected: $photoVM.currentSubMode)
+
+                    // 拍摄阶段显示"← 换图"返回设置
+                    if photoVM.currentSubMode == .influencerClone && photoVM.isShootingPhase {
+                        Button(action: { photoVM.clearReference() }) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "arrow.left")
+                                    .font(.system(size: 10, weight: .medium))
+                                Text("换图")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10).padding(.vertical, 6)
+                            .background(Capsule().fill(Color.white.opacity(0.18)))
+                        }
+                        .transition(.opacity)
+                    }
+                }
+                .padding(.vertical, 8).padding(.horizontal, 8)
+                .background(Color.black)
+                .animation(.easeInOut(duration: 0.2), value: photoVM.currentSubMode)
+
+                // MARK: - 相机预览 + 辅助叠加层
+                ZStack {
+                    CameraPreviewView(session: cameraVM.session)
+                        .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
+
+                    // 辅助叠加层（Vision AI 驱动 + 骨骼线 + Pose 匹配）
+                    PhotoOverlayView(
+                        subMode: photoVM.currentSubMode,
+                        isShootingPhase: photoVM.isShootingPhase,
+                        advice: photoVM.compositionAdvice,
+                        isPersonDetected: photoVM.isPersonDetected,
+                        showSafetyWarning: photoVM.showSafetyWarning,
+                        safetyWarningText: photoVM.safetyWarningText,
+                        guideTips: photoVM.dynamicGuideTips,
+                        liveJoints: photoVM.liveJoints,
+                        referenceJoints: photoVM.referenceJoints,
+                        isReferenceAnalyzed: photoVM.isReferenceAnalyzed
+                    )
+
+                    // 拍同款设置阶段遮罩
+                    if photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase {
+                        InfluencerSetupOverlay(
+                            referenceImage: photoVM.referenceImage,
+                            isAnalyzing: photoVM.isAnalyzingReference,
+                            isAnalyzed: photoVM.isReferenceAnalyzed,
+                            analysisError: photoVM.referenceAnalysisError,
+                            onPickImage: { photoVM.showImagePicker = true },
+                            onStart: { withAnimation(.easeInOut(duration: 0.3)) { photoVM.isShootingPhase = true } }
+                        )
+                    }
+
+                    // 低光 / 长时间未检测到人物提示
+                    if cameraVM.visionService.isLowLightWarning && photoVM.currentSubMode != .influencerClone {
+                        LowLightHint()
+                            .transition(.opacity)
+                    }
+
+                    // 快门闪光
+                    if cameraVM.showFlash {
+                        Color.white.opacity(0.85).ignoresSafeArea().transition(.opacity)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 2)
+
+
+                // MARK: - 底部操作栏
+                HStack {
+                    // 连拍按钮（长按快门也可触发，这里提供独立入口）
+                    Button(action: { cameraVM.captureBurst(count: 5) }) {
+                        VStack(spacing: 2) {
+                            Image(systemName: "camera.on.rectangle")
+                                .font(.system(size: 14)).foregroundColor(.white.opacity(0.8))
+                            Text("×5").font(.system(size: 9, weight: .medium)).foregroundColor(.white.opacity(0.6))
+                        }
+                        .frame(width: 40, height: 40)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.15)))
+                    }
+                    .accessibilityLabel("连拍")
+                    .accessibilityHint("快速连续拍摄5张")
+                    Spacer()
+                    // 快门：短按单拍，长按（>0.5s）连拍5张
+                    ShutterButton(
+                        singleAction: { cameraVM.capturePhoto() },
+                        burstAction: { cameraVM.captureBurst(count: 5) }
+                    )
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) { cameraVM.switchCamera() }
+                    }) {
+                        Circle().fill(Color.white.opacity(0.15)).frame(width: 34, height: 34)
+                            .overlay(Image(systemName: "camera.rotate").foregroundColor(.white).font(.system(size: 14)))
+                    }
+                    .accessibilityLabel("切换摄像头")
+                    .accessibilityValue(cameraVM.isFrontCamera ? "前置" : "后置")
+                }
+                .padding(.horizontal, 30).padding(.vertical, 16).background(Color.black)
+            }
+        }
+        // 分享悬浮按钮（保存成功后出现，6s 后淡出）
+        .overlay(alignment: .bottom) {
+            if shareButtonVisible, let img = cameraVM.lastSavedImage {
+                Button(action: { showShareSheet = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("分享这张")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(LinearGradient(
+                                colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .shadow(color: Color(hex: "FF5A7E").opacity(0.35), radius: 10, y: 4)
+                    )
+                }
+                .padding(.bottom, 100)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .sheet(isPresented: $showShareSheet) {
+                    ShareSheet(items: [img]) { shareButtonVisible = false }
+                }
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .toast(isShowing: $cameraVM.showToast)
+        .errorToast(isShowing: $cameraVM.showSaveError, message: cameraVM.saveErrorMessage)
+        .onAppear {
+            cameraVM.isVideoMode = false
+            cameraVM.enableVisionAnalysis = true
+            cameraVM.checkPermission()
+            photoVM.bindVision(cameraVM.visionService)
+        }
+        .onDisappear { cameraVM.stopSession() }
+        .overlay {
+            if cameraVM.permissionDenied { PermissionDeniedView() }
+        }
+        // 参考图选择器
+        .sheet(isPresented: $photoVM.showImagePicker) {
+            ImagePickerView(image: $photoVM.referenceImage)
+        }
+        // 参考图选择后 → 重置为设置阶段 + 自动触发 Pose 分析
+        .onChange(of: photoVM.referenceImageVersion) { _ in
+            if photoVM.referenceImage != nil {
+                photoVM.isShootingPhase = false
+                photoVM.analyzeReferenceImage(cameraVM.visionService)
+            } else {
+                photoVM.clearReference()
+            }
+        }
+        // 评分请求：第 3 张和第 15 张照片保存后各触发一次
+        .onChange(of: cameraVM.sessionPhotosSaved) { count in
+            if count == 3 || count == 15 { requestAppReview() }
+        }
+        // 保存成功 → 显示分享按钮，6s 后自动淡出
+        .onChange(of: cameraVM.lastSavedImage) { img in
+            guard img != nil else { return }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                shareButtonVisible = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                withAnimation(.easeOut(duration: 0.5)) { shareButtonVisible = false }
+            }
+        }
+    }
+
+    private func requestAppReview() {
+        guard let scene = UIApplication.shared.connectedScenes
+            .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        else { return }
+        SKStoreReviewController.requestReview(in: scene)
+    }
+}
+
+// MARK: - 子模式 Tab
+private struct PhotoSubModeTab: View {
+    @Binding var selected: PhotoSubMode
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(PhotoSubMode.allCases) { mode in
+                Button(action: { withAnimation(.easeInOut(duration: 0.2)) { selected = mode } }) {
+                    Text(mode.rawValue)
+                        .font(.system(size: 12, weight: selected == mode ? .semibold : .regular))
+                        .foregroundColor(selected == mode ? .white : .white.opacity(0.5))
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(Group {
+                            if selected == mode {
+                                Capsule().fill(LinearGradient(colors: [.rosePink, .peachPink], startPoint: .leading, endPoint: .trailing))
+                                    .shadow(color: .rosePink.opacity(0.3), radius: 4, y: 2)
+                            }
+                        })
+                }
+            }
+        }
+        .padding(3).background(Capsule().fill(Color.white.opacity(0.08)))
+    }
+}
+
+// MARK: - 快门按钮（短按单拍，长按 0.5s 连拍）
+private struct ShutterButton: View {
+    let singleAction: () -> Void
+    let burstAction: () -> Void
+
+    @State private var isPressed = false
+    @State private var burstTimer: Timer?
+    @State private var didBurst = false
+
+    var body: some View {
+        ZStack {
+            Circle().fill(.white).frame(width: 56, height: 56)
+                .shadow(color: .rosePink.opacity(0.25), radius: 12)
+            Circle()
+                .fill(LinearGradient(colors: [.sakuraPink, .rosePink], startPoint: .top, endPoint: .bottom))
+                .frame(width: isPressed ? 40 : 48, height: isPressed ? 40 : 48)
+                .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isPressed)
+        }
+        .scaleEffect(isPressed ? 0.92 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .accessibilityLabel("快门")
+        .accessibilityHint("点击拍照，长按0.5秒连拍5张")
+        .accessibilityAddTraits(.isButton)
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    guard !isPressed else { return }
+                    isPressed = true
+                    didBurst = false
+                    burstTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+                        burstAction()
+                        didBurst = true
+                    }
+                }
+                .onEnded { _ in
+                    burstTimer?.invalidate(); burstTimer = nil
+                    isPressed = false
+                    if !didBurst { singleAction() }
+                }
+        )
+    }
+}
+
+// MARK: - 权限被拒绝
+private struct PermissionDeniedView: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "camera.fill").font(.system(size: 40)).foregroundColor(.rosePink)
+            Text("需要相机权限").font(.system(size: 18, weight: .semibold)).foregroundColor(.berryBrown)
+            Text("请在「设置」中开启相机权限\n才能使用拍摄功能")
+                .font(.system(size: 13)).foregroundColor(.midBerryBrown).multilineTextAlignment(.center)
+            Button(action: {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            }) {
+                Text("前往设置").font(.system(size: 14, weight: .medium)).foregroundColor(.white)
+                    .padding(.horizontal, 24).padding(.vertical, 10)
+                    .background(Capsule().fill(LinearGradient(colors: [.rosePink, .deepRose], startPoint: .leading, endPoint: .trailing)))
+            }
+        }
+        .padding(40)
+        .background(RoundedRectangle(cornerRadius: 24).fill(.white).shadow(color: .rosePink.opacity(0.15), radius: 20, y: 8))
+    }
+}
+
+// MARK: - 拍同款设置阶段遮罩
+
+private struct InfluencerSetupOverlay: View {
+    let referenceImage: UIImage?
+    let isAnalyzing: Bool
+    let isAnalyzed: Bool
+    let analysisError: String?
+    let onPickImage: () -> Void
+    let onStart: () -> Void
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Spacer()
+
+            // 参考图预览 or 上传提示
+            if let img = referenceImage {
+                ZStack(alignment: .bottomTrailing) {
+                    Image(uiImage: img)
+                        .resizable().scaledToFill()
+                        .frame(width: 120, height: 160)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.rosePink.opacity(0.6), lineWidth: 1.5))
+
+                    if isAnalyzing {
+                        ProgressView()
+                            .tint(.white)
+                            .padding(6)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                            .offset(x: 6, y: 6)
+                    } else if isAnalyzed {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.green)
+                            .background(Circle().fill(Color.black.opacity(0.5)))
+                            .offset(x: 6, y: 6)
+                    }
+                }
+
+                VStack(spacing: 4) {
+                    if isAnalyzing {
+                        Text("正在提取轮廓…").font(.system(size: 13)).foregroundColor(.white.opacity(0.7))
+                    } else if isAnalyzed {
+                        Text("轮廓提取完成 ✓").font(.system(size: 13)).foregroundColor(.green.opacity(0.9))
+                    } else if let err = analysisError {
+                        // 修复 bug：分析失败时明确展示错误，不再 spinner 永转
+                        HStack(spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 11)).foregroundColor(.honeyOrange)
+                            Text(err).font(.system(size: 12)).foregroundColor(.honeyOrange)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(Color.black.opacity(0.5)))
+                    }
+                }
+            } else {
+                // 未选图状态
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.rosePink.opacity(0.15))
+                            .frame(width: 80, height: 80)
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 32))
+                            .foregroundColor(.rosePink.opacity(0.8))
+                    }
+                    Text("先选一张参考图")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+                    Text("AI 会自动提取人物轮廓\n让被拍者对齐站好再拍")
+                        .font(.system(size: 12))
+                        .foregroundColor(.white.opacity(0.55))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                }
+            }
+
+            // 按钮区
+            VStack(spacing: 10) {
+                Button(action: onPickImage) {
+                    HStack(spacing: 6) {
+                        Image(systemName: referenceImage == nil ? "photo.on.rectangle" : "arrow.triangle.2.circlepath")
+                            .font(.system(size: 13))
+                        Text(referenceImage == nil ? "从相册选图" : "重新选图")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity).frame(height: 44)
+                    .background(Capsule().fill(Color.white.opacity(0.18)))
+                }
+
+                if isAnalyzed {
+                    Button(action: onStart) {
+                        Text("开始拍摄 →")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 44)
+                            .background(
+                                Capsule().fill(LinearGradient(
+                                    colors: [.rosePink, .peachPink],
+                                    startPoint: .leading, endPoint: .trailing
+                                ))
+                                .shadow(color: .rosePink.opacity(0.35), radius: 8, y: 3)
+                            )
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
+            .padding(.horizontal, 32)
+            .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isAnalyzed)
+
+            Spacer()
+        }
+        .background(Color.black.opacity(0.55))
+    }
+}
+
+// MARK: - 系统相册图片选择器
+struct ImagePickerView: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.dismiss) private var dismiss
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images; config.selectionLimit = 1
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    func updateUIViewController(_ vc: PHPickerViewController, context: Context) {}
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: ImagePickerView
+        init(_ parent: ImagePickerView) { self.parent = parent }
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.dismiss()
+            guard let provider = results.first?.itemProvider,
+                  provider.canLoadObject(ofClass: UIImage.self) else { return }
+            provider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
+                DispatchQueue.main.async { self?.parent.image = image as? UIImage }
+            }
+        }
+    }
+}
+
+// MARK: - 低光 / 持续无人物提示
+
+private struct LowLightHint: View {
+    var body: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 8) {
+                Image(systemName: "sun.min").font(.system(size: 13)).foregroundColor(.honeyOrange)
+                Text("检测不到人物，试试光线更亮的地方")
+                    .font(.system(size: 12, weight: .medium)).foregroundColor(.white)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(Capsule().fill(Color.black.opacity(0.6)))
+            .padding(.bottom, 100)
+        }
+    }
+}
