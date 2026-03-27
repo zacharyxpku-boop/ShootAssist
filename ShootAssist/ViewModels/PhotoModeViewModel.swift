@@ -6,6 +6,35 @@ import Combine
 class PhotoModeViewModel: ObservableObject {
     @Published var currentSubMode: PhotoSubMode = .influencerClone
 
+    // MARK: - 每日免费次数（拍同款限 3 次/天，Pro 无限）
+    static let freeDailyLimit = 3
+    @AppStorage("sa_clone_date")  private var storedDate: String = ""
+    @AppStorage("sa_clone_count") private var storedCount: Int = 0
+
+    /// 今日剩余免费次数（非 Pro 时有意义）
+    var freeUsesRemaining: Int {
+        let today = Self.todayString()
+        if storedDate != today { return Self.freeDailyLimit }
+        return max(0, Self.freeDailyLimit - storedCount)
+    }
+
+    /// 记录一次使用（开始拍摄时调用）
+    func recordCloneUse() {
+        let today = Self.todayString()
+        if storedDate != today { storedDate = today; storedCount = 0 }
+        storedCount += 1
+    }
+
+    /// 是否已达免费上限
+    func isFreeLimitReached(isPro: Bool) -> Bool {
+        guard !isPro else { return false }
+        return freeUsesRemaining <= 0
+    }
+
+    private static func todayString() -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date())
+    }
+
     // MARK: - Vision 驱动的实时状态
     @Published var compositionAdvice: CompositionAdvice = .empty
     @Published var isPersonDetected = false

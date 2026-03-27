@@ -154,17 +154,18 @@ private struct PoseCard: View {
                     .font(.system(size: 10))
                     .foregroundColor(.midBerryBrown)
                 Spacer()
-                NavigationLink(destination: PhotoModeView()) {
+                NavigationLink(destination: PhotoModeView(launchCloneDirectly: true)) {
                     HStack(spacing: 4) {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 10))
-                        Text("用这个Pose拍")
-                            .font(.system(size: 10, weight: .medium))
+                        Image(systemName: "camera.fill").font(.system(size: 10))
+                        Text("拍同款").font(.system(size: 10, weight: .semibold))
+                        Image(systemName: "arrow.right").font(.system(size: 8))
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.rosePink))
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Capsule().fill(LinearGradient(
+                        colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
+                        startPoint: .leading, endPoint: .trailing
+                    )))
                 }
             }
         }

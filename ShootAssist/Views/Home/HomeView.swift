@@ -2,16 +2,17 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var subManager: SubscriptionManager
-    @State private var navigateToPhoto = false
+    @State private var navigateToClone = false      // 拍同款直通
+    @State private var navigateToPhoto = false      // 普通拍照
     @State private var navigateToVideo = false
     @State private var navigateToPoseLibrary = false
     @State private var showPaywall = false
     @State private var logoOffset: CGFloat = 0
+    @State private var heroPulse = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // 背景渐变
                 LinearGradient(
                     colors: [.warmCream, .lightPink, .lavenderPink],
                     startPoint: .top, endPoint: .bottom
@@ -29,8 +30,7 @@ struct HomeView: View {
                         ZStack(alignment: .topTrailing) {
                             LogoSection(logoOffset: logoOffset)
                             if subManager.isPro {
-                                ProBadgePill(label: "Pro ✓", isPro: true)
-                                    .offset(x: 8, y: 0)
+                                ProBadgePill(label: "Pro ✓", isPro: true).offset(x: 8, y: 0)
                             } else {
                                 Button(action: { showPaywall = true }) {
                                     ProBadgePill(label: "升级 Pro", isPro: false)
@@ -40,44 +40,53 @@ struct HomeView: View {
                             }
                         }
 
-                        Spacer().frame(height: 10)
+                        Spacer().frame(height: 20)
 
-                        // 差异化 slogan
-                        TaglineCapsule()
+                        // ── HERO：拍同款 ──────────────────────────────
+                        HeroCloneCard(pulse: heroPulse) {
+                            navigateToClone = true
+                        }
+                        .padding(.horizontal, 20)
 
-                        Spacer().frame(height: 28)
+                        Spacer().frame(height: 14)
 
-                        // 三张功能卡片
-                        VStack(spacing: 14) {
-                            AnimatedCard(onTap: { navigateToPhoto = true }) {
-                                PhotoCardContent()
-                            }
-
+                        // ── 次要功能行：录像 + Pose 灵感 ───────────────
+                        HStack(spacing: 12) {
                             AnimatedCard(onTap: { navigateToVideo = true }) {
-                                VideoCardContent(isPro: subManager.isPro)
+                                SmallVideoCard(isPro: subManager.isPro)
                             }
-
                             AnimatedCard(onTap: { navigateToPoseLibrary = true }) {
-                                PoseCardContent()
+                                SmallPoseCard()
                             }
                         }
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, 20)
 
-                        Spacer().frame(height: 24)
+                        // ── 拍照入口（弱化，藏在下面）──────────────────
+                        Button(action: { navigateToPhoto = true }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "camera").font(.system(size: 12))
+                                Text("更多拍照功能")
+                                    .font(.system(size: 12))
+                                Image(systemName: "chevron.right").font(.system(size: 10))
+                            }
+                            .foregroundColor(.midBerryBrown.opacity(0.7))
+                            .padding(.top, 18)
+                        }
 
-                        // 底部指示器
-                        PageIndicator(currentPage: 0)
-                            .padding(.bottom, 30)
+                        Spacer().frame(height: 40)
                     }
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            // 拍同款直通：进入 PhotoModeView 并自动选图
+            .navigationDestination(isPresented: $navigateToClone) {
+                PhotoModeView(launchCloneDirectly: true)
+            }
             .navigationDestination(isPresented: $navigateToPhoto) {
                 PhotoModeView()
             }
             .navigationDestination(isPresented: $navigateToVideo) {
-                VideoModeView()
-                    .environmentObject(subManager)
+                VideoModeView().environmentObject(subManager)
             }
             .navigationDestination(isPresented: $navigateToPoseLibrary) {
                 PoseLibraryView()
@@ -87,9 +96,8 @@ struct HomeView: View {
             PaywallView().environmentObject(subManager)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                logoOffset = 4
-            }
+            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { logoOffset = 4 }
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { heroPulse = true }
         }
     }
 }
@@ -149,23 +157,110 @@ private struct LogoSection: View {
     }
 }
 
-// MARK: - 标语胶囊
-private struct TaglineCapsule: View {
+// MARK: - Hero 拍同款卡（首页唯一焦点）
+
+private struct HeroCloneCard: View {
+    let pulse: Bool
+    let action: () -> Void
+
     var body: some View {
-        Text("✨ AI教你构图 · 帮你摆pose · 一拍就对")
-            .font(.system(size: 10))
-            .foregroundColor(.midBerryBrown)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(.white.opacity(0.6))
-                    .overlay(Capsule().stroke(Color.sakuraPink, lineWidth: 1))
-            )
+        Button(action: action) {
+            ZStack {
+                // 背景渐变
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(LinearGradient(
+                        colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ))
+                    .shadow(color: Color(hex: "FF5A7E").opacity(0.35), radius: 18, y: 8)
+
+                // 内容
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        // 标题
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("看到好看的照片？")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("教你拍同款")
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundColor(.white.opacity(0.92))
+                        }
+
+                        // 说明
+                        Text("上传参考图 · AI 识别姿势\n实时对齐，闭眼就能拍出来")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.8))
+                            .lineSpacing(3)
+
+                        // 按钮
+                        HStack(spacing: 6) {
+                            Text("立刻试试")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(Color(hex: "FF5A7E"))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(Color(hex: "FF5A7E"))
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(Capsule().fill(.white))
+                        .scaleEffect(pulse ? 1.03 : 1.0)
+                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulse)
+                    }
+                    .padding(24)
+
+                    Spacer()
+
+                    // 右侧大 emoji
+                    Text("🪞")
+                        .font(.system(size: 64))
+                        .padding(.trailing, 20)
+                        .offset(y: -4)
+                }
+            }
+            .frame(height: 170)
+        }
+        .accessibilityLabel("拍同款，上传参考图 AI 帮你实时对齐")
     }
 }
 
-// MARK: - 照片卡片
+// MARK: - 次要功能小卡（录像）
+
+private struct SmallVideoCard: View {
+    let isPro: Bool
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("🎬").font(.system(size: 24))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("录像").font(.system(size: 14, weight: .bold)).foregroundColor(.berryBrown)
+                Text("手势舞 · 对口型").font(.system(size: 10)).foregroundColor(.paleRose)
+            }
+            Spacer()
+            if !isPro {
+                Image(systemName: "lock.fill").font(.system(size: 10)).foregroundColor(.honeyOrange)
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 14)
+    }
+}
+
+// MARK: - 次要功能小卡（Pose 灵感）
+
+private struct SmallPoseCard: View {
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("💡").font(.system(size: 24))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pose 灵感").font(.system(size: 14, weight: .bold)).foregroundColor(.berryBrown)
+                Text("40+ 热门 Pose").font(.system(size: 10)).foregroundColor(.paleRose)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14).padding(.vertical, 14)
+    }
+}
+
+// MARK: - 照片卡片（保留，供"更多拍照功能"入口使用）
 private struct PhotoCardContent: View {
     var body: some View {
         HStack(spacing: 14) {
@@ -173,27 +268,13 @@ private struct PhotoCardContent: View {
                 .fill(LinearGradient(colors: [.sakuraPink, .peachPink], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(width: 46, height: 46)
                 .overlay(Text("📷").font(.system(size: 22)))
-
             VStack(alignment: .leading, spacing: 3) {
-                Text("拍照")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.berryBrown)
-                Text("AI实时构图 · 网红Pose复刻 · 闭眼提醒")
-                    .font(.system(size: 10))
-                    .foregroundColor(.paleRose)
+                Text("拍照").font(.system(size: 15, weight: .bold)).foregroundColor(.berryBrown)
+                Text("AI构图 · 机位提示").font(.system(size: 10)).foregroundColor(.paleRose)
             }
             Spacer()
-            Text("›").font(.system(size: 18, weight: .medium)).foregroundColor(.peachPink)
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
-        .overlay(alignment: .topTrailing) {
-            Text("热门")
-                .font(.system(size: 8, weight: .bold)).foregroundColor(.white)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(LinearGradient(
-                    colors: [.rosePink, .deepRose], startPoint: .leading, endPoint: .trailing)))
-                .offset(x: -10, y: -6)
-        }
     }
 }
 
@@ -222,63 +303,6 @@ private struct ProBadgePill: View {
     }
 }
 
-// MARK: - 视频卡片
-private struct VideoCardContent: View {
-    let isPro: Bool
-
-    var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [Color(hex: "FFE0CC"), .honeyOrange], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 46, height: 46)
-                .overlay(Text("🎬").font(.system(size: 22)))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("录像")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.berryBrown)
-                Text(isPro ? "手势舞 · 歌词对口型 · 跟视频跳" : "手势舞 · 歌词对口型 · 跟视频跳 🔒")
-                    .font(.system(size: 10))
-                    .foregroundColor(.paleRose)
-            }
-            Spacer()
-            Text("›").font(.system(size: 18, weight: .medium)).foregroundColor(.honeyOrange)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-    }
-}
-
-// MARK: - Pose 灵感卡片（新增）
-private struct PoseCardContent: View {
-    var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [.lavenderPink, .rosePink.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 46, height: 46)
-                .overlay(Text("💡").font(.system(size: 22)))
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text("灵感")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.berryBrown)
-                Text("40+ 热门Pose · 拍照技巧速学")
-                    .font(.system(size: 10))
-                    .foregroundColor(.paleRose)
-            }
-            Spacer()
-            Text("›").font(.system(size: 18, weight: .medium)).foregroundColor(.rosePink)
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-        .overlay(alignment: .topTrailing) {
-            Text("新")
-                .font(.system(size: 8, weight: .bold)).foregroundColor(.white)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(Capsule().fill(LinearGradient(
-                    colors: [.honeyOrange, .deepRose], startPoint: .leading, endPoint: .trailing)))
-                .offset(x: -10, y: -6)
-        }
-    }
-}
 
 // MARK: - 页面指示器
 private struct PageIndicator: View {

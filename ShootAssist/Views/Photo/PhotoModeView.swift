@@ -3,11 +3,18 @@ import PhotosUI
 import StoreKit
 
 struct PhotoModeView: View {
+    /// 从首页英雄区直接进入时传 true，自动选中拍同款并打开图片选择器
+    var launchCloneDirectly: Bool = false
+
     @StateObject private var cameraVM = CameraViewModel()
     @StateObject private var photoVM = PhotoModeViewModel()
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var subManager: SubscriptionManager
+    @State private var showPaywall = false
     @State private var showShareSheet = false
     @State private var shareButtonVisible = false
+    @State private var showComparisonShare = false   // 对比拼图分享面板
+    @State private var comparisonImage: UIImage? = nil
 
     var body: some View {
         ZStack {
@@ -87,8 +94,18 @@ struct PhotoModeView: View {
                             isAnalyzing: photoVM.isAnalyzingReference,
                             isAnalyzed: photoVM.isReferenceAnalyzed,
                             analysisError: photoVM.referenceAnalysisError,
+                            freeUsesRemaining: photoVM.freeUsesRemaining,
+                            isPro: subManager.isPro,
                             onPickImage: { photoVM.showImagePicker = true },
-                            onStart: { withAnimation(.easeInOut(duration: 0.3)) { photoVM.isShootingPhase = true } }
+                            onStart: {
+                                // 次数检查
+                                if photoVM.isFreeLimitReached(isPro: subManager.isPro) {
+                                    showPaywall = true
+                                    return
+                                }
+                                photoVM.recordCloneUse()
+                                withAnimation(.easeInOut(duration: 0.3)) { photoVM.isShootingPhase = true }
+                            }
                         )
                     }
 
@@ -176,10 +193,26 @@ struct PhotoModeView: View {
             cameraVM.enableVisionAnalysis = true
             cameraVM.checkPermission()
             photoVM.bindVision(cameraVM.visionService)
+            // 从首页英雄区直通：自动选中拍同款并弹出图片选择器
+            if launchCloneDirectly {
+                photoVM.currentSubMode = .influencerClone
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    photoVM.showImagePicker = true
+                }
+            }
         }
         .onDisappear { cameraVM.stopSession() }
         .overlay {
             if cameraVM.permissionDenied { PermissionDeniedView() }
+        }
+        .sheet(isPresented: $showPaywall) {
+            PaywallView().environmentObject(subManager)
+        }
+        // 对比拼图分享面板
+        .sheet(isPresented: $showComparisonShare) {
+            if let card = comparisonImage {
+                ComparisonShareSheet(image: card, onDismiss: { showComparisonShare = false })
+            }
         }
         // 参考图选择器
         .sheet(isPresented: $photoVM.showImagePicker) {
@@ -198,14 +231,34 @@ struct PhotoModeView: View {
         .onChange(of: cameraVM.sessionPhotosSaved) { count in
             if count == 3 || count == 15 { requestAppReview() }
         }
-        // 保存成功 → 显示分享按钮，6s 后自动淡出
+        // 保存成功 → 拍同款模式生成对比拼图；普通模式显示分享按钮
         .onChange(of: cameraVM.lastSavedImage) { img in
-            guard img != nil else { return }
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                shareButtonVisible = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
-                withAnimation(.easeOut(duration: 0.5)) { shareButtonVisible = false }
+            guard let captured = img else { return }
+
+            if photoVM.currentSubMode == .influencerClone,
+               photoVM.isShootingPhase,
+               let refImage = photoVM.referenceImage {
+                // 生成对比拼图（后台合成，主线程展示）
+                let score = Int(photoVM.poseMatchResult.score * 100)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let card = ComparisonCardService.shared.generate(
+                        reference: refImage,
+                        captured: captured,
+                        score: score
+                    )
+                    DispatchQueue.main.async {
+                        comparisonImage = card
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
+                            showComparisonShare = true
+                        }
+                    }
+                }
+            } else {
+                // 普通模式：浮动分享按钮
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { shareButtonVisible = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                    withAnimation(.easeOut(duration: 0.5)) { shareButtonVisible = false }
+                }
             }
         }
     }
@@ -313,6 +366,8 @@ private struct InfluencerSetupOverlay: View {
     let isAnalyzing: Bool
     let isAnalyzed: Bool
     let analysisError: String?
+    let freeUsesRemaining: Int
+    let isPro: Bool
     let onPickImage: () -> Void
     let onStart: () -> Void
 
@@ -397,18 +452,41 @@ private struct InfluencerSetupOverlay: View {
                 }
 
                 if isAnalyzed {
+                    // 剩余次数提示（非 Pro 用户）
+                    if !isPro {
+                        HStack(spacing: 4) {
+                            Image(systemName: freeUsesRemaining > 0 ? "checkmark.circle" : "lock.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(freeUsesRemaining > 0 ? .white.opacity(0.7) : .honeyOrange)
+                            Text(freeUsesRemaining > 0
+                                 ? "今天还剩 \(freeUsesRemaining) 次免费拍同款"
+                                 : "今日免费次数已用完 · 升级 Pro 无限拍")
+                                .font(.system(size: 11))
+                                .foregroundColor(freeUsesRemaining > 0 ? .white.opacity(0.6) : .honeyOrange)
+                        }
+                        .transition(.opacity)
+                    }
+
                     Button(action: onStart) {
-                        Text("开始拍摄 →")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity).frame(height: 44)
-                            .background(
-                                Capsule().fill(LinearGradient(
-                                    colors: [.rosePink, .peachPink],
-                                    startPoint: .leading, endPoint: .trailing
-                                ))
-                                .shadow(color: .rosePink.opacity(0.35), radius: 8, y: 3)
-                            )
+                        HStack(spacing: 6) {
+                            if !isPro && freeUsesRemaining <= 0 {
+                                Image(systemName: "crown.fill").font(.system(size: 12))
+                                Text("升级 Pro · 开始拍摄").font(.system(size: 15, weight: .semibold))
+                            } else {
+                                Text("开始拍摄 →").font(.system(size: 15, weight: .semibold))
+                            }
+                        }
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity).frame(height: 44)
+                        .background(
+                            Capsule().fill(LinearGradient(
+                                colors: !isPro && freeUsesRemaining <= 0
+                                    ? [Color(hex: "FF8C42"), Color(hex: "FF5A7E")]
+                                    : [.rosePink, .peachPink],
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .shadow(color: .rosePink.opacity(0.35), radius: 8, y: 3)
+                        )
                     }
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
                 }
@@ -447,6 +525,68 @@ struct ImagePickerView: UIViewControllerRepresentable {
             provider.loadObject(ofClass: UIImage.self) { [weak self] image, _ in
                 DispatchQueue.main.async { self?.parent.image = image as? UIImage }
             }
+        }
+    }
+}
+
+// MARK: - 对比拼图分享面板
+
+private struct ComparisonShareSheet: View {
+    let image: UIImage
+    let onDismiss: () -> Void
+    @State private var showSystemShare = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 拖动指示器
+            Capsule().fill(Color.gray.opacity(0.3)).frame(width: 40, height: 4).padding(.top, 12)
+
+            // 标题
+            VStack(spacing: 4) {
+                Text("同款对比图生成了 🎉").font(.system(size: 17, weight: .semibold)).foregroundColor(.berryBrown)
+                Text("发出去让朋友也来挑战一下？").font(.system(size: 12)).foregroundColor(.midBerryBrown)
+            }
+            .padding(.top, 16).padding(.bottom, 16)
+
+            // 对比图预览
+            Image(uiImage: image)
+                .resizable().scaledToFit()
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .padding(.horizontal, 20)
+                .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
+
+            // 操作按钮
+            HStack(spacing: 12) {
+                // 分享
+                Button(action: { showSystemShare = true }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up").font(.system(size: 14))
+                        Text("分享到小红书/朋友圈").font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity).frame(height: 46)
+                    .background(
+                        Capsule().fill(LinearGradient(
+                            colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .shadow(color: Color(hex: "FF5A7E").opacity(0.3), radius: 8, y: 3)
+                    )
+                }
+
+                // 关闭
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.midBerryBrown)
+                        .frame(width: 46, height: 46).background(Circle().fill(Color.gray.opacity(0.1)))
+                }
+            }
+            .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 36)
+        }
+        .background(Color(hex: "FAFAF9").ignoresSafeArea())
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.hidden)
+        .sheet(isPresented: $showSystemShare) {
+            ShareSheet(items: [image]) { showSystemShare = false; onDismiss() }
         }
     }
 }

@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>小白快门 Demo</title>
+<style>
+  :root {
+    --warm-cream: #FFF8F0;
+    --soft-white: #FFFAF5;
+    --sakura-pink: #FFD6E7;
+    --peach-pink: #FFB3CC;
+    --rose-pink: #FF85A1;
+    --deep-rose: #E8637A;
+    --honey-orange: #FFCBA4;
+    --berry-brown: #3D2C35;
+    --mid-berry: #7A5C65;
+    --pale-rose: #B89AA0;
+    --light-pink: #FFE8F0;
+    --lavender-pink: #FFF0FA;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, 'PingFang SC', 'SF Pro Display', sans-serif;
+    background: #000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* iPhone 壳 */
+  .phone-frame {
+    width: 375px;
+    height: 812px;
+    border-radius: 44px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 0 3px #1a1a1a, 0 0 0 6px #333, 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  /* 页面容器 */
+  .page {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    transition: transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94), opacity 0.35s;
+  }
+  .page.hidden-right { transform: translateX(100%); opacity: 0; pointer-events: none; }
+  .page.hidden-left { transform: translateX(-30%); opacity: 0.5; pointer-events: none; }
+  .page.active { transform: translateX(0); opacity: 1; pointer-events: auto; }
+
+  /* ========== 主页 ========== */
+  .home-page {
+    background: linear-gradient(180deg, var(--warm-cream) 0%, var(--light-pink) 50%, var(--lavender-pink) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 70px;
+  }
+
+  /* 光晕 */
+  .glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    pointer-events: none;
+  }
+  .glow-1 { width: 200px; height: 200px; background: rgba(255,133,161,0.25); top: 40px; right: -40px; }
+  .glow-2 { width: 180px; height: 180px; background: rgba(255,203,164,0.2); bottom: 100px; left: -50px; }
+  .glow-3 { width: 160px; height: 160px; background: rgba(255,179,204,0.18); top: 300px; left: -30px; }
+
+  /* 星星 */
+  .sparkle {
+    position: absolute;
+    font-size: 10px;
+    background: linear-gradient(135deg, var(--rose-pink), var(--peach-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sparkle-breathe 2.5s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+  .sparkle:nth-child(1) { left: 15%; top: 12%; font-size: 10px; animation-delay: 0s; }
+  .sparkle:nth-child(2) { left: 82%; top: 8%; font-size: 7px; animation-delay: 0.5s; }
+  .sparkle:nth-child(3) { left: 68%; top: 35%; font-size: 13px; animation-delay: 1s; }
+  .sparkle:nth-child(4) { left: 25%; top: 55%; font-size: 8px; animation-delay: 1.5s; }
+  .sparkle:nth-child(5) { left: 90%; top: 65%; font-size: 11px; animation-delay: 0.8s; }
+
+  @keyframes sparkle-breathe {
+    from { opacity: 0.3; }
+    to { opacity: 0.8; }
+  }
+
+  /* Logo */
+  .logo-area { position: relative; z-index: 2; text-align: center; }
+  .logo-icon {
+    width: 60px; height: 60px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, var(--rose-pink), var(--peach-pink), var(--honey-orange));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    margin: 0 auto;
+    box-shadow: 0 4px 12px rgba(255,133,161,0.3);
+    animation: logo-float 3s ease-in-out infinite;
+    position: relative;
+  }
+  .logo-sparkle {
+    position: absolute;
+    top: -6px; right: -6px;
+    font-size: 12px;
+    background: linear-gradient(135deg, var(--rose-pink), var(--peach-pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: sparkle-breathe 2.5s ease-in-out infinite alternate;
+  }
+  @keyframes logo-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+
+  .app-name {
+    font-size: 22px; font-weight: 700; letter-spacing: 3px;
+    background: linear-gradient(90deg, var(--deep-rose), var(--rose-pink), var(--honey-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-top: 8px;
+  }
+  .app-subtitle {
+    font-size: 9px; font-weight: 500; letter-spacing: 1.5px;
+    color: var(--pale-rose);
+    margin-top: 2px;
+  }
+
+  /* 标语胶囊 */
+  .tagline {
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--mid-berry);
+    padding: 5px 14px;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid var(--sakura-pink);
+    border-radius: 50px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* 功能卡片 */
+  .cards-area {
+    width: 100%;
+    padding: 36px 24px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .feature-card {
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.65);
+    border: 1.5px solid var(--sakura-pink);
+    border-radius: 20px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    box-shadow: 0 4px 16px rgba(255,133,161,0.12);
+    cursor: pointer;
+    transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s;
+    overflow: hidden;
+  }
+  .feature-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(255,133,161,0.3), transparent);
+  }
+  .feature-card:active {
+    transform: scale(0.94);
+    box-shadow: 0 2px 8px rgba(255,133,161,0.06);
+  }
+  .feature-card .shimmer {
+    position: absolute;
+    top: 0; left: -200px;
+    width: 100px; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    transition: none;
+  }
+  .feature-card.shimmer-active .shimmer {
+    animation: shimmer-sweep 0.5s ease-in-out forwards;
+  }
+  @keyframes shimmer-sweep {
+    from { left: -100px; }
+    to { left: 400px; }
+  }
+
+  .card-icon {
+    width: 46px; height: 46px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+  .card-icon.photo { background: linear-gradient(135deg, var(--sakura-pink), var(--peach-pink)); }
+  .card-icon.video { background: linear-gradient(135deg, #FFE0CC, var(--honey-orange)); }
+
+  .card-text h3 { font-size: 15px; font-weight: 700; color: var(--berry-brown); }
+  .card-text p { font-size: 10px; color: var(--pale-rose); margin-top: 3px; }
+
+  .card-arrow { margin-left: auto; font-size: 18px; font-weight: 500; }
+  .card-arrow.pink { color: var(--peach-pink); }
+  .card-arrow.orange { color: var(--honey-orange); }
+
+  .badge-hot {
+    position: absolute; top: -6px; right: 10px;
+    font-size: 8px; font-weight: 700; color: #fff;
+    padding: 3px 8px;
+    background: linear-gradient(90deg, var(--rose-pink), var(--deep-rose));
+    border-radius: 8px;
+  }
+
+  /* 页面指示器 */
+  .page-indicator {
+    display: flex; gap: 8px; align-items: center;
+    position: absolute; bottom: 30px;
+    z-index: 2;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sakura-pink); }
+  .dot.active {
+    width: 20px; border-radius: 3px;
+    background: linear-gradient(90deg, var(--rose-pink), var(--peach-pink));
+  }
+
+  /* ========== 照片模式 ========== */
+  .camera-page {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cam-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 50px 16px 8px;
+    background: #000;
+  }
+  .cam-topbar .back-btn, .cam-topbar .action-btn {
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 18px;
+    cursor: pointer;
+    background: none; border: none;
+  }
+  .cam-topbar .title {
+    font-size: 16px; font-weight: 600; color: #fff;
+  }
+
+  /* 子模式 Tab */
+  .sub-tabs {
+    display: flex; justify-content: center; gap: 4px;
+    padding: 8px;
+    background: #000;
+  }
+  .sub-tab {
+    font-size: 12px; color: rgba(255,255,255,0.5);
+    padding: 7px 14px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none; background: none;
+  }
+  .sub-tab.active {
+    background: linear-gradient(90deg, var(--rose-pink), var(--peach-pink));
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(255,133,161,0.3);
+  }
+  .sub-tabs-container {
+    background: rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 3px;
+    display: flex; gap: 4px;
+  }
+
+  /* 相机预览区 */
+  .camera-preview {
+    flex: 1;
+    margin: 0 2px;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+  }
+  .camera-fake-bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    opacity: 0.3;
+  }
+  .camera-label {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255,255,255,0.15);
+    font-size: 14px;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* 叠加层 - 黄金分割线 */
+  .grid-line {
+    position: absolute;
+    background: rgba(255,214,231,0.22);
+  }
+  .grid-h { width: 100%; height: 0.8px; left: 0; }
+  .grid-v { height: 100%; width: 0.8px; top: 0; }
+  .grid-h.h1 { top: 33.33%; }
+  .grid-h.h2 { top: 66.66%; }
+  .grid-v.v1 { left: 33.33%; }
+  .grid-v.v2 { left: 66.66%; }
+
+  /* 四角取景框 */
+  .corner-bracket {
+    position: absolute;
+    width: 18px; height: 18px;
+  }
+  .corner-bracket::before, .corner-bracket::after {
+    content: '';
+    position: absolute;
+    background: var(--rose-pink);
+    border-radius: 1.5px;
+  }
+  .corner-bracket.tl { top: 16px; left: 16px; }
+  .corner-bracket.tl::before { width: 18px; height: 2px; top: 0; left: 0; }
+  .corner-bracket.tl::after { width: 2px; height: 18px; top: 0; left: 0; }
+  .corner-bracket.tr { top: 16px; right: 16px; }
+  .corner-bracket.tr::before { width: 18px; height: 2px; top: 0; right: 0; }
+  .corner-bracket.tr::after { width: 2px; height: 18px; top: 0; right: 0; }
+  .corner-bracket.bl { bottom: 16px; left: 16px; }
+  .corner-bracket.bl::before { width: 18px; height: 2px; bottom: 0; left: 0; }
+  .corner-bracket.bl::after { width: 2px; height: 18px; bottom: 0; left: 0; }
+  .corner-bracket.br { bottom: 16px; right: 16px; }
+  .corner-bracket.br::before { width: 18px; height: 2px; bottom: 0; right: 0; }
+  .corner-bracket.br::after { width: 2px; height: 18px; bottom: 0; right: 0; }
+
+  /* 人体虚影 */
+  .ghost-silhouette {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -55%);
+  }
+  .ghost-body {
+    width: 70px; height: 160px;
+    border: 1.5px dashed rgba(255,133,161,0.55);
+    border-radius: 12px;
+    background: rgba(255,133,161,0.05);
+  }
+  .ghost-head {
+    width: 30px; height: 30px;
+    border: 1.5px dashed rgba(255,133,161,0.55);
+    border-radius: 50%;
+    background: rgba(255,133,161,0.05);
+    margin: 0 auto -8px;
+  }
+
+  /* 对齐徽章 */
+  .align-badge {
+    position: absolute;
+    top: 16px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px; font-weight: 500;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 50px;
+    background: var(--rose-pink);
+    box-shadow: 0 0 12px rgba(255,133,161,0.5);
+    animation: badge-glow 1.5s ease-in-out infinite alternate;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .align-badge.success {
+    background: #4CAF50;
+    box-shadow: 0 0 12px rgba(76,175,80,0.5);
+  }
+  @keyframes badge-glow {
+    from { box-shadow: 0 0 8px rgba(255,133,161,0.5); }
+    to { box-shadow: 0 0 16px rgba(255,133,161,0.9); }
+  }
+
+  /* 底部提示气泡 */
+  .guide-bubble {
+    position: absolute;
+    bottom: 16px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px; font-weight: 500;
+    color: #fff;
+    padding: 7px 14px;
+    border-radius: 50px;
+    background: rgba(255,133,161,0.85);
+    white-space: nowrap;
+  }
+
+  /* 安全警告 */
+  .safety-border {
+    position: absolute; inset: 0;
+    border: 4px solid transparent;
+    pointer-events: none;
+    transition: border-color 0.2s;
+  }
+  .safety-border.flash { border-color: rgba(255,0,0,0.7); }
+  .safety-warning-text {
+    position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; font-weight: 500; color: #fff;
+    padding: 6px 12px; border-radius: 50px;
+    background: rgba(255,0,0,0.8);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .safety-warning-text.show { opacity: 1; }
+
+  /* 机位提示卡片 */
+  .camera-guide-card {
+    position: absolute;
+    right: 8px; top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0,0,0,0.6);
+    border-radius: 10px;
+    padding: 12px 8px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .camera-guide-card span {
+    font-size: 10px; color: #fff;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  /* 底部操作栏 */
+  .cam-bottom {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 30px;
+    background: #000;
+  }
+  .album-thumb {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.6);
+    font-size: 16px;
+  }
+
+  /* 快门按钮 */
+  .shutter-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 12px rgba(255,133,161,0.25);
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: none;
+  }
+  .shutter-btn:active { transform: scale(0.88); }
+  .shutter-inner {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--sakura-pink), var(--rose-pink));
+  }
+
+  /* 录制按钮 */
+  .record-btn {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 12px rgba(255,0,0,0.25);
+    cursor: pointer;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border: none;
+  }
+  .record-btn:active { transform: scale(0.88); }
+  .record-inner {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: #e53935;
+    transition: all 0.3s;
+  }
+  .record-inner.recording {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+  }
+
+  .flip-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 14px;
+    cursor: pointer;
+    border: none;
+  }
+
+  .delay-btn {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 12px; font-weight: 500;
+    cursor: pointer;
+    border: none;
+  }
+
+  /* 闪光效果 */
+  .flash-overlay {
+    position: absolute; inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease-out;
+    border-radius: 12px;
+    z-index: 50;
+  }
+  .flash-overlay.active { opacity: 0.85; }
+
+  /* Toast */
+  .toast {
+    position: absolute;
+    top: -60px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 13px; font-weight: 500;
+    color: var(--berry-brown);
+    background: #fff;
+    border: 1.5px solid var(--rose-pink);
+    border-radius: 50px;
+    padding: 8px 18px;
+    box-shadow: 0 2px 8px rgba(255,133,161,0.15);
+    transition: top 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { top: 60px; }
+
+  /* REC 指示器 */
+  .rec-indicator {
+    position: absolute; top: 14px; right: 16px;
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 50px;
+    padding: 4px 8px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .rec-indicator.show { opacity: 1; }
+  .rec-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #e53935;
+    animation: rec-blink 1s ease-in-out infinite;
+  }
+  @keyframes rec-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+  .rec-text { font-size: 10px; color: #fff; font-weight: 500; }
+
+  .rec-timer {
+    position: absolute; top: 14px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px; font-weight: 300;
+    color: #fff; letter-spacing: 2px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .rec-timer.show { opacity: 1; }
+
+  /* 手势舞箭头 */
+  .dance-arrows {
+    position: absolute;
+    bottom: 10%;
+    left: 50%; transform: translateX(-50%);
+    display: flex; gap: 20px;
+    font-size: 20px;
+  }
+  .dance-arrows span {
+    animation: arrow-pulse 1s ease-in-out infinite;
+    opacity: 0.75;
+  }
+  @keyframes arrow-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
+  .beat-bar {
+    position: absolute; bottom: 0; left: 0;
+    height: 2.5px;
+    background: linear-gradient(90deg, var(--rose-pink), var(--peach-pink));
+    animation: beat-wave 1s ease-in-out infinite alternate;
+    border-radius: 1.25px;
+  }
+  @keyframes beat-wave {
+    from { width: 20%; }
+    to { width: 95%; }
+  }
+
+  /* 歌词 */
+  .lyrics-area {
+    position: absolute;
+    bottom: 12%;
+    left: 50%; transform: translateX(-50%);
+    text-align: center;
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+    padding: 10px 18px;
+  }
+  .lyric-current {
+    font-size: 12px; font-weight: 500;
+    color: #fff; letter-spacing: 2px;
+    text-shadow: 0 0 4px rgba(255,133,161,0.6);
+  }
+  .lyric-next {
+    font-size: 12px; color: rgba(255,255,255,0.5);
+    letter-spacing: 2px;
+    margin-top: 6px;
+  }
+
+  /* 倒计时遮罩 */
+  .countdown-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 60;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    border-radius: 12px;
+  }
+  .countdown-overlay.show { opacity: 1; pointer-events: auto; }
+  .countdown-number {
+    font-size: 80px; font-weight: 900;
+    background: linear-gradient(180deg, var(--rose-pink), var(--honey-orange));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: countdown-breathe 0.8s ease-in-out infinite alternate;
+  }
+  @keyframes countdown-breathe {
+    from { transform: scale(1.1); }
+    to { transform: scale(0.9); }
+  }
+
+  /* 隐藏的叠加层 */
+  .overlay-layer { display: none; }
+  .overlay-layer.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="phone-frame">
+
+  <!-- ===== 主页 ===== -->
+  <div class="page home-page active" id="homePage">
+    <div class="glow-orb glow-1"></div>
+    <div class="glow-orb glow-2"></div>
+    <div class="glow-orb glow-3"></div>
+
+    <div class="sparkle">✦</div>
+    <div class="sparkle">✦</div>
+    <div class="sparkle">✦</div>
+    <div class="sparkle">✦</div>
+    <div class="sparkle">✦</div>
+
+    <div class="logo-area">
+      <div class="logo-icon">
+        📸
+        <span class="logo-sparkle">✦</span>
+      </div>
+      <div class="app-name">小白快门</div>
+      <div class="app-subtitle">SHOOT ASSISTANT</div>
+    </div>
+
+    <div class="tagline">✨ 今天也要拍出最好看的自己～</div>
+
+    <div class="cards-area">
+      <div class="feature-card" onclick="navigateTo('photo')">
+        <div class="shimmer"></div>
+        <span class="badge-hot">热门</span>
+        <div class="card-icon photo">📷</div>
+        <div class="card-text">
+          <h3>照片</h3>
+          <p>构图辅助 · 网红复刻 · 一拍即好</p>
+        </div>
+        <span class="card-arrow pink">›</span>
+      </div>
+
+      <div class="feature-card" onclick="navigateTo('video')">
+        <div class="shimmer"></div>
+        <div class="card-icon video">🎬</div>
+        <div class="card-text">
+          <h3>视频</h3>
+          <p>手势舞指引 · 对口型提词</p>
+        </div>
+        <span class="card-arrow orange">›</span>
+      </div>
+    </div>
+
+    <div class="page-indicator">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- ===== 照片模式 ===== -->
+  <div class="page camera-page hidden-right" id="photoPage">
+    <div class="cam-topbar">
+      <button class="back-btn" onclick="navigateBack('photo')">‹</button>
+      <span class="title">照片模式</span>
+      <button class="action-btn" id="flashBtn" onclick="toggleFlash()">⚡</button>
+    </div>
+
+    <div class="sub-tabs">
+      <div class="sub-tabs-container">
+        <button class="sub-tab active" onclick="switchPhotoMode(0, this)">网红复刻</button>
+        <button class="sub-tab" onclick="switchPhotoMode(1, this)">智能构图</button>
+        <button class="sub-tab" onclick="switchPhotoMode(2, this)">机位提示</button>
+      </div>
+    </div>
+
+    <div class="camera-preview" id="photoPreview">
+      <div class="camera-fake-bg"></div>
+      <div class="camera-label">📷 相机实时预览<br><small>（真机显示实际画面）</small></div>
+
+      <!-- 闪光 -->
+      <div class="flash-overlay" id="photoFlash"></div>
+
+      <!-- 黄金分割线 -->
+      <div class="grid-line grid-h h1"></div>
+      <div class="grid-line grid-h h2"></div>
+      <div class="grid-line grid-v v1"></div>
+      <div class="grid-line grid-v v2"></div>
+
+      <!-- 四角取景框 -->
+      <div class="corner-bracket tl" id="cornerBrackets1"></div>
+      <div class="corner-bracket tr" id="cornerBrackets2"></div>
+      <div class="corner-bracket bl" id="cornerBrackets3"></div>
+      <div class="corner-bracket br" id="cornerBrackets4"></div>
+
+      <!-- 网红复刻叠加 -->
+      <div class="overlay-layer active" id="overlayClone">
+        <div class="ghost-silhouette">
+          <div class="ghost-head"></div>
+          <div class="ghost-body"></div>
+        </div>
+        <div class="align-badge" id="alignBadge">✦ 对齐中...</div>
+        <div class="guide-bubble">后退 20cm，比例更美 ✦</div>
+      </div>
+
+      <!-- 智能构图叠加 -->
+      <div class="overlay-layer" id="overlaySmart">
+        <div class="safety-border" id="safetyBorder"></div>
+        <div class="safety-warning-text" id="safetyText">⚠️ 注意！主体快要出画面了</div>
+      </div>
+
+      <!-- 机位提示叠加 -->
+      <div class="overlay-layer" id="overlayGuide">
+        <div class="camera-guide-card">
+          <span>手机上扬 10°</span>
+          <span>后退 20cm</span>
+          <span>靠近一点</span>
+          <span>比例更佳 ✦</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="photoToast">✦ 已保存到相册</div>
+
+    <div class="cam-bottom">
+      <div class="album-thumb">🖼</div>
+      <button class="shutter-btn" onclick="takePhoto()">
+        <div class="shutter-inner"></div>
+      </button>
+      <button class="flip-btn">🔄</button>
+    </div>
+  </div>
+
+  <!-- ===== 视频模式 ===== -->
+  <div class="page camera-page hidden-right" id="videoPage">
+    <div class="cam-topbar">
+      <button class="back-btn" onclick="navigateBack('video')">‹</button>
+      <span class="title">视频模式</span>
+      <button class="action-btn">♪</button>
+    </div>
+
+    <div class="sub-tabs">
+      <div class="sub-tabs-container">
+        <button class="sub-tab active" onclick="switchVideoMode(0, this)">手势舞</button>
+        <button class="sub-tab" onclick="switchVideoMode(1, this)">对口型</button>
+      </div>
+    </div>
+
+    <div class="camera-preview" id="videoPreview">
+      <div class="camera-fake-bg"></div>
+      <div class="camera-label">🎬 相机实时预览<br><small>（真机显示实际画面）</small></div>
+
+      <!-- REC 指示器 -->
+      <div class="rec-indicator" id="recIndicator">
+        <div class="rec-dot"></div>
+        <span class="rec-text">REC</span>
+      </div>
+      <div class="rec-timer" id="recTimer">00:00</div>
+
+      <!-- 手势舞箭头 -->
+      <div class="overlay-layer active" id="overlayDance">
+        <div class="dance-arrows" id="danceArrows">
+          <span>👈</span><span>⬆️</span><span>👉</span>
+        </div>
+        <div class="beat-bar"></div>
+      </div>
+
+      <!-- 对口型歌词 -->
+      <div class="overlay-layer" id="overlayLyrics">
+        <div class="lyrics-area">
+          <div class="lyric-current" id="lyricCurrent">爱你孤身走暗巷 ♪</div>
+          <div class="lyric-next" id="lyricNext">爱你不跪的模样 ♪</div>
+        </div>
+      </div>
+
+      <!-- 倒计时遮罩 -->
+      <div class="countdown-overlay" id="countdownOverlay">
+        <div class="countdown-number" id="countdownNumber">3</div>
+      </div>
+    </div>
+
+    <div class="toast" id="videoToast">✦ 已保存到相册</div>
+
+    <div class="cam-bottom">
+      <button class="flip-btn">♪</button>
+      <button class="record-btn" onclick="toggleRecord()">
+        <div class="record-inner" id="recordInner"></div>
+      </button>
+      <button class="delay-btn" id="delayBtn" onclick="cycleDelay()">3s</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ===== 导航 =====
+function navigateTo(page) {
+  const card = event.currentTarget;
+  card.classList.add('shimmer-active');
+  setTimeout(() => card.classList.remove('shimmer-active'), 500);
+
+  setTimeout(() => {
+    document.getElementById('homePage').className = 'page home-page hidden-left';
+    if (page === 'photo') {
+      document.getElementById('photoPage').className = 'page camera-page active';
+      startPhotoSimulations();
+    } else {
+      document.getElementById('videoPage').className = 'page camera-page active';
+      startVideoSimulations();
+    }
+  }, 350);
+}
+
+function navigateBack(from) {
+  if (from === 'photo') {
+    document.getElementById('photoPage').className = 'page camera-page hidden-right';
+    stopPhotoSimulations();
+  } else {
+    document.getElementById('videoPage').className = 'page camera-page hidden-right';
+    stopVideoSimulations();
+  }
+  document.getElementById('homePage').className = 'page home-page active';
+}
+
+// ===== 照片模式 =====
+let photoMode = 0;
+let alignTimer = null;
+let safetyTimer = null;
+
+function switchPhotoMode(mode, btn) {
+  photoMode = mode;
+  btn.parentElement.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.getElementById('overlayClone').classList.toggle('active', mode === 0);
+  document.getElementById('overlaySmart').classList.toggle('active', mode === 1);
+  document.getElementById('overlayGuide').classList.toggle('active', mode === 2);
+
+  // 四角取景框（0和1显示）
+  const showBrackets = mode === 0 || mode === 1;
+  document.querySelectorAll('.corner-bracket').forEach(b => b.style.display = showBrackets ? 'block' : 'none');
+
+  stopPhotoSimulations();
+  startPhotoSimulations();
+}
+
+function startPhotoSimulations() {
+  if (photoMode === 0) {
+    // 对齐模拟
+    const badge = document.getElementById('alignBadge');
+    badge.textContent = '✦ 对齐中...';
+    badge.classList.remove('success');
+    alignTimer = setTimeout(() => {
+      badge.textContent = '✦ 对齐成功！';
+      badge.classList.add('success');
+    }, 3000);
+  }
+  if (photoMode === 1) {
+    // 安全警告模拟
+    function triggerSafety() {
+      const border = document.getElementById('safetyBorder');
+      const text = document.getElementById('safetyText');
+      border.classList.add('flash');
+      text.classList.add('show');
+      setTimeout(() => { border.classList.remove('flash'); }, 200);
+      setTimeout(() => { border.classList.add('flash'); }, 400);
+      setTimeout(() => { border.classList.remove('flash'); text.classList.remove('show'); }, 800);
+    }
+    safetyTimer = setInterval(triggerSafety, 5000);
+    setTimeout(triggerSafety, 1000);
+  }
+}
+
+function stopPhotoSimulations() {
+  clearTimeout(alignTimer);
+  clearInterval(safetyTimer);
+}
+
+function takePhoto() {
+  // 闪光
+  const flash = document.getElementById('photoFlash');
+  flash.classList.add('active');
+  setTimeout(() => flash.classList.remove('active'), 350);
+
+  // 震动（Web 无法做真实震动）
+
+  // Toast
+  setTimeout(() => {
+    const toast = document.getElementById('photoToast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2300);
+  }, 400);
+}
+
+function toggleFlash() {
+  const btn = document.getElementById('flashBtn');
+  const modes = ['⚡', '⚡A', '⊘'];
+  const current = modes.indexOf(btn.textContent);
+  btn.textContent = modes[(current + 1) % modes.length];
+}
+
+// ===== 视频模式 =====
+let videoMode = 0;
+let isRecording = false;
+let recordSeconds = 0;
+let recordTimer = null;
+let arrowTimer = null;
+let lyricTimer = null;
+let delayOptions = ['3s', '5s', '10s', '即时'];
+let delayIndex = 0;
+
+const arrowSeqs = [
+  ['👈','⬆️','👉'], ['👉','⬇️','👈'], ['⬆️','👈','⬆️'], ['👉','⬆️','👈'], ['⬇️','👉','⬇️']
+];
+let arrowIdx = 0;
+
+const lyrics = [
+  '爱你孤身走暗巷 ♪','爱你不跪的模样 ♪','爱你对峙过绝望 ♪','不肯哭一场 ♪',
+  '爱你破烂的衣裳 ♪','却敢堵命运的枪 ♪','爱你和我那么像 ♪','缺口都一样 ♪'
+];
+let lyricIdx = 0;
+
+function switchVideoMode(mode, btn) {
+  videoMode = mode;
+  btn.parentElement.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('overlayDance').classList.toggle('active', mode === 0);
+  document.getElementById('overlayLyrics').classList.toggle('active', mode === 1);
+  stopVideoSimulations();
+  startVideoSimulations();
+}
+
+function startVideoSimulations() {
+  if (videoMode === 0) {
+    arrowIdx = 0;
+    arrowTimer = setInterval(() => {
+      arrowIdx = (arrowIdx + 1) % arrowSeqs.length;
+      const el = document.getElementById('danceArrows');
+      el.innerHTML = arrowSeqs[arrowIdx].map(a => `<span>${a}</span>`).join('');
+    }, 1500);
+  }
+  if (videoMode === 1) {
+    lyricIdx = 0;
+    lyricTimer = setInterval(() => {
+      lyricIdx = (lyricIdx + 1) % lyrics.length;
+      document.getElementById('lyricCurrent').textContent = lyrics[lyricIdx];
+      const nextIdx = (lyricIdx + 1) % lyrics.length;
+      document.getElementById('lyricNext').textContent = lyrics[nextIdx];
+    }, 3000);
+  }
+}
+
+function stopVideoSimulations() {
+  clearInterval(arrowTimer);
+  clearInterval(lyricTimer);
+}
+
+function cycleDelay() {
+  delayIndex = (delayIndex + 1) % delayOptions.length;
+  document.getElementById('delayBtn').textContent = delayOptions[delayIndex];
+}
+
+function toggleRecord() {
+  if (isRecording) {
+    // 停止录制
+    isRecording = false;
+    clearInterval(recordTimer);
+    document.getElementById('recordInner').classList.remove('recording');
+    document.getElementById('recIndicator').classList.remove('show');
+    document.getElementById('recTimer').classList.remove('show');
+    // Toast
+    const toast = document.getElementById('videoToast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2300);
+  } else {
+    // 倒计时
+    const delayLabel = delayOptions[delayIndex];
+    let delaySec = delayLabel === '即时' ? 0 : parseInt(delayLabel);
+
+    if (delaySec > 0) {
+      const overlay = document.getElementById('countdownOverlay');
+      const numEl = document.getElementById('countdownNumber');
+      overlay.classList.add('show');
+      numEl.textContent = delaySec;
+      let count = delaySec;
+      const cdTimer = setInterval(() => {
+        count--;
+        if (count <= 0) {
+          clearInterval(cdTimer);
+          overlay.classList.remove('show');
+          startRecordingNow();
+        } else {
+          numEl.textContent = count;
+        }
+      }, 1000);
+    } else {
+      startRecordingNow();
+    }
+  }
+}
+
+function startRecordingNow() {
+  isRecording = true;
+  recordSeconds = 0;
+  document.getElementById('recordInner').classList.add('recording');
+  document.getElementById('recIndicator').classList.add('show');
+  document.getElementById('recTimer').classList.add('show');
+  document.getElementById('recTimer').textContent = '00:00';
+
+  recordTimer = setInterval(() => {
+    recordSeconds++;
+    const m = String(Math.floor(recordSeconds / 60)).padStart(2, '0');
+    const s = String(recordSeconds % 60).padStart(2, '0');
+    document.getElementById('recTimer').textContent = `${m}:${s}`;
+  }, 1000);
+}
+</script>
+
+</body>
+</html>

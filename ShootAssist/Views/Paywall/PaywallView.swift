@@ -70,24 +70,24 @@ struct PaywallView: View {
 
                         // MARK: 功能列表
                         VStack(spacing: 0) {
+                            ProFeatureRow(emoji: "🪞",
+                                          title: "无限次拍同款",
+                                          subtitle: "免费版每天 3 次，Pro 无限拍\n上传任意参考图，AI 实时骨骼对齐")
+                            Divider().padding(.horizontal, 16).opacity(0.4)
+
+                            ProFeatureRow(emoji: "📸",
+                                          title: "拍完自动生成对比拼图",
+                                          subtitle: "参考图 vs 你拍的，左右对比\n带匹配度「87%」直接发小红书")
+                            Divider().padding(.horizontal, 16).opacity(0.4)
+
                             ProFeatureRow(emoji: "🎬",
-                                          title: "导入你喜欢的任意视频",
-                                          subtitle: "不只是 Demo，想跟哪首跟哪首\nAI 30 秒自动提取动作引导，跟着 emoji 就能拍")
-                            Divider().padding(.horizontal, 16).opacity(0.4)
-
-                            ProFeatureRow(emoji: "🎤",
-                                          title: "对口型那首你最爱的歌",
-                                          subtitle: "不限 5 首，全曲库随便选\n节拍精准同步，录完直接发抖音")
-                            Divider().padding(.horizontal, 16).opacity(0.4)
-
-                            ProFeatureRow(emoji: "✨",
-                                          title: "录完自带水印，发出去就是品牌",
-                                          subtitle: "视频自动加「小白快门制作」标识\n免剪辑，录完一键分享小红书/抖音")
+                                          title: "导入任意舞蹈视频跟拍",
+                                          subtitle: "不只是 Demo，想跟哪首跟哪首\nAI 30 秒提取动作引导，emoji 提示跟着跳")
                             Divider().padding(.horizontal, 16).opacity(0.4)
 
                             ProFeatureRow(emoji: "🚀",
-                                          title: "人脸滤镜等新功能第一个用",
-                                          subtitle: "AR Pose 叠加、AI 美颜等功能上线\nPro 用户抢先解锁，比别人早一步")
+                                          title: "新功能第一个用",
+                                          subtitle: "AR Pose 叠加等上线 Pro 先解锁\n视频录制完自动加「小白快门」水印")
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 16)
