@@ -27,6 +27,21 @@
 		AA000018 /* PhotoSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000018; };
 		AA000019 /* VideoSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000019; };
 		AA000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB000020; };
+		AA000021 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021; };
+		AA000022 /* VideoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022; };
+		AA000023 /* VisionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023; };
+		AA000024 /* PoseMatchingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024; };
+		AA000025 /* ComparisonCardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000025; };
+		AA000026 /* VideoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026; };
+		AA000027 /* VideoWatermarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027; };
+		AA000028 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000028; };
+		AA000029 /* PoseDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029; };
+		AA000030 /* LyricDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030; };
+		AA000031 /* DemoTemplateDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000031; };
+		AA000032 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032; };
+		AA000033 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033; };
+		AA000034 /* PoseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034; };
+		AA000035 /* PoseSkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +65,21 @@
 		AB000018 /* PhotoSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSaver.swift; sourceTree = "<group>"; };
 		AB000019 /* VideoSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSaver.swift; sourceTree = "<group>"; };
 		AB000020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB000021 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		AB000022 /* VideoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPicker.swift; sourceTree = "<group>"; };
+		AB000023 /* VisionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionService.swift; sourceTree = "<group>"; };
+		AB000024 /* PoseMatchingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseMatchingService.swift; sourceTree = "<group>"; };
+		AB000025 /* ComparisonCardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonCardService.swift; sourceTree = "<group>"; };
+		AB000026 /* VideoAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoAnalysisService.swift; sourceTree = "<group>"; };
+		AB000027 /* VideoWatermarkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWatermarkService.swift; sourceTree = "<group>"; };
+		AB000028 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		AB000029 /* PoseDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseDatabase.swift; sourceTree = "<group>"; };
+		AB000030 /* LyricDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricDatabase.swift; sourceTree = "<group>"; };
+		AB000031 /* DemoTemplateDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoTemplateDatabase.swift; sourceTree = "<group>"; };
+		AB000032 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AB000033 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		AB000034 /* PoseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseLibraryView.swift; sourceTree = "<group>"; };
+		AB000035 /* PoseSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseSkeletonView.swift; sourceTree = "<group>"; };
 		AC000001 /* ShootAssist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShootAssist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -82,6 +112,8 @@
 				AE000006 /* Views */,
 				AE000010 /* ViewModels */,
 				AE000011 /* Models */,
+				AE000013 /* Services */,
+				AE000014 /* Resources */,
 				AE000012 /* Utils */,
 				AB000020 /* Assets.xcassets */,
 				AC000002 /* Info.plist */,
@@ -111,6 +143,8 @@
 				AB000003 /* SparkleView.swift */,
 				AB000004 /* ToastView.swift */,
 				AB000005 /* AnimatedCard.swift */,
+				AB000021 /* ShareSheet.swift */,
+				AB000022 /* VideoPicker.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -121,6 +155,8 @@
 				AE000007 /* Home */,
 				AE000008 /* Photo */,
 				AE000009 /* Video */,
+				AE000015 /* Paywall */,
+				AE000016 /* PoseLibrary */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -129,6 +165,7 @@
 			isa = PBXGroup;
 			children = (
 				AB000006 /* HomeView.swift */,
+				AB000032 /* OnboardingView.swift */,
 			);
 			path = Home;
 			sourceTree = "<group>";
@@ -140,6 +177,7 @@
 				AB000008 /* CameraPreviewView.swift */,
 				AB000009 /* PhotoOverlayView.swift */,
 				AB000010 /* GhostSilhouetteView.swift */,
+				AB000035 /* PoseSkeletonView.swift */,
 			);
 			path = Photo;
 			sourceTree = "<group>";
@@ -179,6 +217,45 @@
 				AB000019 /* VideoSaver.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		AE000013 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AB000023 /* VisionService.swift */,
+				AB000024 /* PoseMatchingService.swift */,
+				AB000025 /* ComparisonCardService.swift */,
+				AB000026 /* VideoAnalysisService.swift */,
+				AB000027 /* VideoWatermarkService.swift */,
+				AB000028 /* SubscriptionManager.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		AE000014 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AB000029 /* PoseDatabase.swift */,
+				AB000030 /* LyricDatabase.swift */,
+				AB000031 /* DemoTemplateDatabase.swift */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AE000015 /* Paywall */ = {
+			isa = PBXGroup;
+			children = (
+				AB000033 /* PaywallView.swift */,
+			);
+			path = Paywall;
+			sourceTree = "<group>";
+		};
+		AE000016 /* PoseLibrary */ = {
+			isa = PBXGroup;
+			children = (
+				AB000034 /* PoseLibraryView.swift */,
+			);
+			path = PoseLibrary;
 			sourceTree = "<group>";
 		};
 		AE000099 /* Products */ = {
@@ -278,6 +355,21 @@
 				AA000017 /* ShootMode.swift in Sources */,
 				AA000018 /* PhotoSaver.swift in Sources */,
 				AA000019 /* VideoSaver.swift in Sources */,
+				AA000021 /* ShareSheet.swift in Sources */,
+				AA000022 /* VideoPicker.swift in Sources */,
+				AA000023 /* VisionService.swift in Sources */,
+				AA000024 /* PoseMatchingService.swift in Sources */,
+				AA000025 /* ComparisonCardService.swift in Sources */,
+				AA000026 /* VideoAnalysisService.swift in Sources */,
+				AA000027 /* VideoWatermarkService.swift in Sources */,
+				AA000028 /* SubscriptionManager.swift in Sources */,
+				AA000029 /* PoseDatabase.swift in Sources */,
+				AA000030 /* LyricDatabase.swift in Sources */,
+				AA000031 /* DemoTemplateDatabase.swift in Sources */,
+				AA000032 /* OnboardingView.swift in Sources */,
+				AA000033 /* PaywallView.swift in Sources */,
+				AA000034 /* PoseLibraryView.swift in Sources */,
+				AA000035 /* PoseSkeletonView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
