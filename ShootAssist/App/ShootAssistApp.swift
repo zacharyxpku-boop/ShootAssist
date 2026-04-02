@@ -10,6 +10,7 @@ struct ShootAssistApp: App {
             HomeView()
                 .preferredColorScheme(.light)
                 .environmentObject(subManager)
+                .onAppear { Analytics.track(Analytics.Event.appOpened) }
                 .fullScreenCover(isPresented: Binding(
                     get: { !hasSeenOnboarding },
                     set: { _ in }

@@ -1,0 +1,138 @@
+{
+  "identifier" : "ShootAssistStoreKit",
+  "nonConsumableProducts" : [
+
+  ],
+  "nonRenewingSubscriptionProducts" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "zh_CN",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Load Products"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Purchase"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Verification"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "App Store Sync"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Subscription Status"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Collection"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Win-Back Offer"
+      },
+      {
+        "current" : null,
+        "enabled" : false,
+        "name" : "Entitlements"
+      }
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "ShootAssistProGroup",
+      "localizations" : [
+        {
+          "customAppName" : "小白快门",
+          "displayName" : "小白快门 Pro",
+          "lang" : "zh_CN"
+        }
+      ],
+      "name" : "小白快门 Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "8.00",
+          "familySharable" : false,
+          "groupNumber" : 1,
+          "internalID" : "com.shootassist.pro.monthly",
+          "introductoryOffer" : {
+            "paymentMode" : "FREE_TRIAL",
+            "period" : 3,
+            "periodCount" : 1,
+            "periodUnit" : "DAY"
+          },
+          "localizations" : [
+            {
+              "description" : "每月订阅小白快门 Pro",
+              "displayName" : "月度订阅",
+              "lang" : "zh_CN"
+            }
+          ],
+          "productID" : "com.shootassist.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Pro",
+          "subscriptionGroupID" : "ShootAssistProGroup",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "48.00",
+          "familySharable" : false,
+          "groupNumber" : 2,
+          "internalID" : "com.shootassist.pro.annual",
+          "introductoryOffer" : {
+            "paymentMode" : "FREE_TRIAL",
+            "period" : 3,
+            "periodCount" : 1,
+            "periodUnit" : "DAY"
+          },
+          "localizations" : [
+            {
+              "description" : "年度订阅小白快门 Pro，相当于每月 4 元",
+              "displayName" : "年度订阅",
+              "lang" : "zh_CN"
+            }
+          ],
+          "productID" : "com.shootassist.pro.annual",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Annual Pro",
+          "subscriptionGroupID" : "ShootAssistProGroup",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

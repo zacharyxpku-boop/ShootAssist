@@ -1,0 +1,171 @@
+workflows:
+  ios-release:
+    name: ShootAssist iOS Release
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+
+    environment:
+      xcode: 15.4
+      groups:
+        - app_store_credentials  # 在 Codemagic 界面配置以下变量:
+                                 # APP_STORE_CONNECT_ISSUER_ID
+                                 # APP_STORE_CONNECT_KEY_IDENTIFIER
+                                 # APP_STORE_CONNECT_PRIVATE_KEY
+                                 # CERTIFICATE_PRIVATE_KEY
+      vars:
+        BUNDLE_ID: com.shootassist.app
+        APP_STORE_APP_ID: "YOUR_APP_ID"  # 上架后在 App Store Connect 获取
+
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          brew install xcodegen
+
+      - name: Generate Xcode project
+        script: |
+          cd $CM_BUILD_DIR
+          xcodegen generate
+
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files $BUNDLE_ID \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Build & Archive
+        script: |
+          cd $CM_BUILD_DIR
+          xcodebuild archive \
+            -project ShootAssist.xcodeproj \
+            -scheme ShootAssist \
+            -configuration Release \
+            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_STYLE=Manual \
+            PROVISIONING_PROFILE_SPECIFIER="match AppStore $BUNDLE_ID" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $(keychain path)"
+
+      - name: Export IPA
+        script: |
+          xcodebuild -exportArchive \
+            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            -exportPath "$CM_BUILD_DIR/export"
+
+          # 生成 ExportOptions.plist
+          cat > /tmp/ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+    artifacts:
+      - $CM_BUILD_DIR/export/*.ipa
+      - $CM_BUILD_DIR/ShootAssist.xcarchive
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true
+        beta_groups:
+          - "Internal Testers"
+
+  ios-dev:
+    name: ShootAssist Dev Build (TestFlight)
+    max_build_duration: 45
+    instance_type: mac_mini_m2
+
+    environment:
+      xcode: 15.4
+      groups:
+        - app_store_credentials
+      vars:
+        BUNDLE_ID: com.shootassist.app
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+
+    scripts:
+      - name: Install XcodeGen
+        script: brew install xcodegen
+
+      - name: Generate Xcode project
+        script: |
+          cd $CM_BUILD_DIR
+          xcodegen generate
+
+      - name: Set up code signing
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files $BUNDLE_ID \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
+
+      - name: Build & Archive
+        script: |
+          cd $CM_BUILD_DIR
+          xcodebuild archive \
+            -project ShootAssist.xcodeproj \
+            -scheme ShootAssist \
+            -configuration Release \
+            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            -destination "generic/platform=iOS"
+
+      - name: Export IPA
+        script: |
+          cat > /tmp/ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            -exportPath "$CM_BUILD_DIR/export"
+
+    artifacts:
+      - $CM_BUILD_DIR/export/*.ipa
+
+    publishing:
+      app_store_connect:
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        submit_to_testflight: true

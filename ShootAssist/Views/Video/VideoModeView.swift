@@ -210,7 +210,11 @@ struct VideoModeView: View {
         }
         .sheet(isPresented: $showShareVideo) {
             if let url = shareVideoURL {
-                ShareSheet(items: [url]) { showShareVideo = false }
+                ShareSheet(items: [url, ReferralManager.shareAppendText()]) {
+                    Analytics.track(Analytics.Event.videoShared)
+                    Analytics.track(Analytics.Event.referralGenerated)
+                    showShareVideo = false
+                }
             }
         }
         .sheet(isPresented: $videoVM.showVideoPicker) {

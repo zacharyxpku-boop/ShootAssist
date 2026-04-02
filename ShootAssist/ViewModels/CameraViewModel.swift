@@ -12,6 +12,7 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var showSaveError = false
     @Published var saveErrorMessage = ""
     @Published var sessionPhotosSaved = 0
+    @Published var totalPhotosSaved: Int = UserDefaults.standard.integer(forKey: "totalPhotosSaved")
     @Published var lastSavedImage: UIImage? = nil
     @Published var lastSavedVideoURL: URL? = nil
 
@@ -277,7 +278,11 @@ class CameraViewModel: NSObject, ObservableObject {
                     if success {
                         self?.showToast = true
                         self?.sessionPhotosSaved += 1
+                        let newTotal = UserDefaults.standard.integer(forKey: "totalPhotosSaved") + 1
+                        UserDefaults.standard.set(newTotal, forKey: "totalPhotosSaved")
+                        self?.totalPhotosSaved = newTotal
                         if let img = UIImage(data: data) { self?.lastSavedImage = img }
+                        Analytics.track(Analytics.Event.photoSaved)
                     } else {
                         self?.saveErrorMessage = "照片保存失败，请稍后重试"
                         self?.showSaveError = true

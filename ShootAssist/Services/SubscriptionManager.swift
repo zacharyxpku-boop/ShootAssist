@@ -56,6 +56,8 @@ final class SubscriptionManager: ObservableObject {
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
                 await refreshStatus()
+                let plan = product.id.contains("annual") ? "annual" : "monthly"
+                Analytics.track(Analytics.Event.subscriptionPurchased, properties: ["plan": plan])
             case .userCancelled, .pending:
                 break
             @unknown default:
@@ -76,6 +78,7 @@ final class SubscriptionManager: ObservableObject {
         do {
             try await AppStore.sync()
             await refreshStatus()
+            if isPro { Analytics.track(Analytics.Event.subscriptionRestored) }
         } catch {
             purchaseError = "恢复失败，请检查网络后重试"
         }

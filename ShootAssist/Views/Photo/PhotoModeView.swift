@@ -100,10 +100,12 @@ struct PhotoModeView: View {
                             onStart: {
                                 // 次数检查
                                 if photoVM.isFreeLimitReached(isPro: subManager.isPro) {
+                                    Analytics.track(Analytics.Event.freeLimitReached)
                                     showPaywall = true
                                     return
                                 }
                                 photoVM.recordCloneUse()
+                                Analytics.track(Analytics.Event.cloneSessionStarted)
                                 withAnimation(.easeInOut(duration: 0.3)) { photoVM.isShootingPhase = true }
                             }
                         )
@@ -181,7 +183,7 @@ struct PhotoModeView: View {
                 .padding(.bottom, 100)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .sheet(isPresented: $showShareSheet) {
-                    ShareSheet(items: [img]) { shareButtonVisible = false }
+                    ShareSheet(items: [img, ReferralManager.shareAppendText()]) { shareButtonVisible = false }
                 }
             }
         }
@@ -227,9 +229,9 @@ struct PhotoModeView: View {
                 photoVM.clearReference()
             }
         }
-        // 评分请求：第 3 张和第 15 张照片保存后各触发一次
-        .onChange(of: cameraVM.sessionPhotosSaved) { count in
-            if count == 3 || count == 15 { requestAppReview() }
+        // 评分请求：累计第 3 张和第 10 张照片保存后各触发一次
+        .onChange(of: cameraVM.totalPhotosSaved) { count in
+            if count == 3 || count == 10 { requestAppReview() }
         }
         // 保存成功 → 拍同款模式生成对比拼图；普通模式显示分享按钮
         .onChange(of: cameraVM.lastSavedImage) { img in
@@ -586,7 +588,11 @@ private struct ComparisonShareSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $showSystemShare) {
-            ShareSheet(items: [image]) { showSystemShare = false; onDismiss() }
+            ShareSheet(items: [image, ReferralManager.shareAppendText()]) {
+                Analytics.track(Analytics.Event.comparisonCardShared)
+                Analytics.track(Analytics.Event.referralGenerated)
+                showSystemShare = false; onDismiss()
+            }
         }
     }
 }

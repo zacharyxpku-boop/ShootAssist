@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var navigateToVideo = false
     @State private var navigateToPoseLibrary = false
     @State private var showPaywall = false
+    @State private var showSettings = false
     @State private var logoOffset: CGFloat = 0
     @State private var heroPulse = false
 
@@ -94,6 +95,19 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView().environmentObject(subManager)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
+        .overlay(alignment: .topLeading) {
+            Button(action: { showSettings = true }) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.midBerryBrown.opacity(0.7))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("设置")
+            .padding(.top, 50).padding(.leading, 4)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { logoOffset = 4 }
@@ -319,6 +333,142 @@ private struct PageIndicator: View {
                     Circle().fill(Color.sakuraPink).frame(width: 6, height: 6)
                 }
             }
+        }
+    }
+}
+
+// MARK: - 设置页（含邀请码）
+
+struct SettingsView: View {
+    @State private var referralCode = ReferralManager.getReferralCode()
+    @State private var codeCopied = false
+
+    // MARK: - 使用统计
+
+    private var totalPhotosSaved: Int {
+        UserDefaults.standard.integer(forKey: "totalPhotosSaved")
+    }
+
+    private var referralCount: Int {
+        UserDefaults.standard.integer(forKey: "referral_count")
+    }
+
+    /// 首次安装日期，首次访问时写入
+    private var firstInstallDate: Date {
+        let key = "first_install_date"
+        if let stored = UserDefaults.standard.object(forKey: key) as? Date {
+            return stored
+        }
+        let now = Date()
+        UserDefaults.standard.set(now, forKey: key)
+        return now
+    }
+
+    /// 连续使用天数（从首次安装到今天的自然天数）
+    private var daysUsed: Int {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.day], from: firstInstallDate, to: Date())
+        return max(1, (components.day ?? 0) + 1)
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                // MARK: 使用统计
+                Section {
+                    StatRow(label: "已拍照片", value: "\(totalPhotosSaved) 张", icon: "photo.fill")
+                    StatRow(label: "连续使用", value: "\(daysUsed) 天", icon: "flame.fill")
+                    StatRow(label: "邀请好友", value: "\(referralCount) 人", icon: "person.2.fill")
+                } header: {
+                    Text("使用统计")
+                }
+
+                // MARK: 邀请好友
+                Section {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("我的邀请码")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.berryBrown)
+                            Text(referralCode)
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.rosePink)
+                        }
+                        Spacer()
+                        Button(action: copyCode) {
+                            HStack(spacing: 4) {
+                                Image(systemName: codeCopied ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 12))
+                                Text(codeCopied ? "已复制" : "复制")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundColor(codeCopied ? .green : .rosePink)
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(
+                                Capsule().fill(
+                                    codeCopied ? Color.green.opacity(0.1) : Color.rosePink.opacity(0.1)
+                                )
+                            )
+                        }
+                        .accessibilityLabel(codeCopied ? "邀请码已复制" : "复制邀请码")
+                    }
+                    .padding(.vertical, 4)
+
+                    Text("把邀请码发给朋友，让 TA 下载 ShootAssist 时填入，一起拍出好看的照片")
+                        .font(.system(size: 12))
+                        .foregroundColor(.midBerryBrown)
+                        .lineSpacing(3)
+                } header: {
+                    Text("邀请好友")
+                }
+
+                // MARK: 关于
+                Section {
+                    HStack {
+                        Text("版本")
+                            .foregroundColor(.berryBrown)
+                        Spacer()
+                        Text("1.0.0")
+                            .foregroundColor(.midBerryBrown)
+                    }
+                } header: {
+                    Text("关于")
+                }
+            }
+            .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func copyCode() {
+        UIPasteboard.general.string = referralCode
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { codeCopied = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation { codeCopied = false }
+        }
+    }
+}
+
+// MARK: - 统计行组件
+
+private struct StatRow: View {
+    let label: String
+    let value: String
+    let icon: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13))
+                .foregroundColor(.rosePink)
+                .frame(width: 20)
+            Text(label)
+                .font(.system(size: 14))
+                .foregroundColor(.berryBrown)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.midBerryBrown)
         }
     }
 }
