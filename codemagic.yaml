@@ -131,18 +131,24 @@ workflows:
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
+          xcode-project use-profiles
 
       - name: Build & Archive
         script: |
           cd $CM_BUILD_DIR
+          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
+          echo "Found profile: $PROFILE_PATH"
+          UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
+          echo "Profile UUID: $UUID"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
             -scheme ShootAssist \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            DEVELOPMENT_TEAM=THXYDBVXGW
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=THXYDBVXGW \
+            PROVISIONING_PROFILE="$UUID"
 
       - name: Export IPA
         script: |
