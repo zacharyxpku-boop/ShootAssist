@@ -141,7 +141,11 @@ workflows:
             -scheme ShootAssist \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -destination "generic/platform=iOS"
+            -destination "generic/platform=iOS" \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM=THXYDBVXGW \
+            PROVISIONING_PROFILE_SPECIFIER="match AppStore $BUNDLE_ID" \
+            OTHER_CODE_SIGN_FLAGS="--keychain $(keychain path)"
 
       - name: Export IPA
         script: |
