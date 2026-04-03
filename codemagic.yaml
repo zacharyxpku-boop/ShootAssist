@@ -135,39 +135,16 @@ workflows:
           keychain add-certificates
           xcode-project use-profiles
 
-      - name: Build & Archive
+      - name: Build IPA
         script: |
           cd $CM_BUILD_DIR
-          xcodebuild archive \
-            -project ShootAssist.xcodeproj \
-            -scheme ShootAssist \
-            -configuration Release \
-            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=THXYDBVXGW
-
-      - name: Export IPA
-        script: |
-          cat > /tmp/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store-connect</string>
-            <key>teamID</key>
-            <string>THXYDBVXGW</string>
-          </dict>
-          </plist>
-          EOF
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -exportOptionsPlist /tmp/ExportOptions.plist \
-            -exportPath "$CM_BUILD_DIR/export"
+          xcode-project build-ipa \
+            --project ShootAssist.xcodeproj \
+            --scheme ShootAssist \
+            --config Release
 
     artifacts:
-      - $CM_BUILD_DIR/export/*.ipa
+      - $CM_BUILD_DIR/output/ios/*.ipa
 
     publishing:
       app_store_connect:
