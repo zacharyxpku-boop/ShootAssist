@@ -305,9 +305,9 @@ private struct ProBadgePill: View {
             .background(
                 Capsule().fill(
                     isPro
-                    ? Color(hex: "FF85A1").opacity(0.15)
-                    : LinearGradient(colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
-                                     startPoint: .leading, endPoint: .trailing)
+                    ? AnyShapeStyle(Color(hex: "FF85A1").opacity(0.15))
+                    : AnyShapeStyle(LinearGradient(colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
+                                     startPoint: .leading, endPoint: .trailing))
                 )
             )
             .overlay(
