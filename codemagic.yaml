@@ -45,6 +45,10 @@ workflows:
       - name: Build & Archive
         script: |
           cd $CM_BUILD_DIR
+          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
+          echo "Found profile: $PROFILE_PATH"
+          UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
+          echo "Profile UUID: $UUID"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
             -scheme ShootAssist \
@@ -52,17 +56,11 @@ workflows:
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -destination "generic/platform=iOS" \
             CODE_SIGN_STYLE=Manual \
-            PROVISIONING_PROFILE_SPECIFIER="match AppStore $BUNDLE_ID" \
-            OTHER_CODE_SIGN_FLAGS="--keychain $(keychain path)"
+            DEVELOPMENT_TEAM=THXYDBVXGW \
+            PROVISIONING_PROFILE="$UUID"
 
       - name: Export IPA
         script: |
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -exportOptionsPlist /tmp/ExportOptions.plist \
-            -exportPath "$CM_BUILD_DIR/export"
-
-          # 生成 ExportOptions.plist
           cat > /tmp/ExportOptions.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -81,6 +79,10 @@ workflows:
           </dict>
           </plist>
           EOF
+          xcodebuild -exportArchive \
+            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            -exportOptionsPlist /tmp/ExportOptions.plist \
+            -exportPath "$CM_BUILD_DIR/export"
 
     artifacts:
       - $CM_BUILD_DIR/export/*.ipa
