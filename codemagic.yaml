@@ -138,10 +138,6 @@ workflows:
       - name: Build & Archive
         script: |
           cd $CM_BUILD_DIR
-          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          echo "Found profile: $PROFILE_PATH"
-          UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
-          echo "Profile UUID: $UUID"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
             -scheme ShootAssist \
@@ -149,28 +145,19 @@ workflows:
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -destination "generic/platform=iOS" \
             CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=THXYDBVXGW \
-            PROVISIONING_PROFILE="$UUID"
+            DEVELOPMENT_TEAM=THXYDBVXGW
 
       - name: Export IPA
         script: |
-          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
-          echo "Export using profile UUID: $UUID"
-          cat > /tmp/ExportOptions.plist << EOF
+          cat > /tmp/ExportOptions.plist << 'EOF'
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key>
             <string>app-store-connect</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$BUNDLE_ID</key>
-              <string>$UUID</string>
-            </dict>
+            <key>teamID</key>
+            <string>THXYDBVXGW</string>
           </dict>
           </plist>
           EOF
