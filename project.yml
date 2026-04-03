@@ -3,7 +3,7 @@ options:
   bundleIdPrefix: com.shootassist
   deploymentTarget:
     iOS: "16.0"
-  xcodeVersion: "15.4"
+  xcodeVersion: "16.2"
   developmentLanguage: zh-Hans
 settings:
   SWIFT_VERSION: "5.0"

@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      xcode: 15.4
+      xcode: 16.2
       groups:
         - app_store_credentials  # 在 Codemagic 界面配置以下变量:
                                  # APP_STORE_CONNECT_ISSUER_ID
@@ -102,7 +102,7 @@ workflows:
     instance_type: mac_mini_m2
 
     environment:
-      xcode: 15.4
+      xcode: 16.2
       groups:
         - app_store_credentials
       vars:
