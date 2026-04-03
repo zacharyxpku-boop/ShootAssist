@@ -14,7 +14,7 @@ workflows:
                                  # CERTIFICATE_PRIVATE_KEY
       vars:
         BUNDLE_ID: com.shootassist.mobile
-        APP_STORE_APP_ID: "YOUR_APP_ID"  # 上架后在 App Store Connect 获取
+        APP_STORE_APP_ID: "6761611972"
 
     triggering:
       events:
