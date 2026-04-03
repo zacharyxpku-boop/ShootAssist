@@ -23,7 +23,7 @@ targets:
     settings:
       INFOPLIST_FILE: ShootAssist/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: com.shootassist.mobile
-      CODE_SIGN_STYLE: Manual
+      CODE_SIGN_STYLE: Automatic
       DEVELOPMENT_TEAM: THXYDBVXGW
       TARGETED_DEVICE_FAMILY: 1
       INFOPLIST_KEY_CFBundleDisplayName: "小白快门"
