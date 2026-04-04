@@ -32,7 +32,7 @@ let poseDatabase: [PoseCategory] = [
         PoseData(name: "走路抓拍", description: "自然走路，用连拍捕捉", tips: ["大步走，手臂自然摆", "看远处，别看镜头", "身体微侧最好看"], difficulty: 2, bestFor: "街拍、旅行", cameraAngle: "微仰5°", icon: "figure.walk"),
         PoseData(name: "靠墙单脚", description: "背靠墙壁，一只脚弯曲踩墙", tips: ["头微微靠墙", "插口袋或抱胸都OK", "目光看远方"], difficulty: 1, bestFor: "街拍、建筑前", cameraAngle: "微仰5°", icon: "figure.stand"),
         PoseData(name: "回头看", description: "背对镜头走，然后回头", tips: ["回头时眼神找镜头", "用连拍抓最佳瞬间", "头发飘起来加分"], difficulty: 2, bestFor: "户外、花丛", cameraAngle: "平视", icon: "arrow.turn.up.left"),
-        PoseData(name: "坐台阶", description: "坐在台阶上，腿自然伸展", tips: ["坐1/3位置，别坐满", "一条腿弯曲一条伸直", "身体微微前倾"], difficulty: 1, bestFor: "校园、公园", cameraAngle: "微俯15°", icon: "figure.roll"),
+        PoseData(name: "坐台阶", description: "坐在台阶上，腿自然伸展", tips: ["坐1/3位置，别坐满", "一条腿弯曲一条伸直", "身体微微前倾"], difficulty: 1, bestFor: "校园、公园", cameraAngle: "微俯15°", icon: "figure.cross.training"),
         PoseData(name: "背影照", description: "背对镜头，展示穿搭或风景", tips: ["稍微侧身更好看", "头可以微转", "手可以拿帽子/包包"], difficulty: 1, bestFor: "风景、穿搭", cameraAngle: "平视", icon: "figure.walk.departure"),
     ]),
     PoseCategory(name: "情侣照", icon: "💑", poses: [
