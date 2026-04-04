@@ -29,7 +29,7 @@ class VideoModeViewModel: ObservableObject {
     @Published var currentDemoEntry: DemoEntry? = nil
     @Published var showPostDemoBanner: Bool = false
 
-    static let freeDanceLimitPerDay = 3
+    static let freeDanceLimitPerDay = 10
     @AppStorage("sa_dance_date")  private var danceDateStr: String = ""
     @AppStorage("sa_dance_count") private var danceCount: Int = 0
 
