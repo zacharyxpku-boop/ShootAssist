@@ -224,7 +224,8 @@ struct VideoModeView: View {
             }
         }
         .sheet(isPresented: $showDemoPicker) {
-            DemoPickerSheet(videoVM: videoVM, isPresented: $showDemoPicker)
+            DemoPickerSheet(videoVM: videoVM, isPresented: $showDemoPicker, showPaywall: $showPaywall)
+                .environmentObject(subManager)
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView().environmentObject(subManager)
@@ -591,7 +592,9 @@ private struct VideoSaveProgressBanner: View {
 
 private struct DemoPickerSheet: View {
     @ObservedObject var videoVM: VideoModeViewModel
+    @EnvironmentObject var subManager: SubscriptionManager
     @Binding var isPresented: Bool
+    @Binding var showPaywall: Bool
 
     var body: some View {
         NavigationStack {
@@ -600,8 +603,13 @@ private struct DemoPickerSheet: View {
                 VStack(spacing: 6) {
                     Text("选一个 Demo 先感受一下")
                         .font(.system(size: 16, weight: .semibold)).foregroundColor(.berryBrown)
-                    Text("跟着 emoji 做动作就行，不用导入视频")
-                        .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                    if !subManager.isPro {
+                        Text("今日剩余免费次数：\(videoVM.freeDanceRemaining)/\(VideoModeViewModel.freeDanceLimitPerDay)")
+                            .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                    } else {
+                        Text("跟着 emoji 做动作就行，不用导入视频")
+                            .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                    }
                 }
                 .padding(.top, 8).padding(.bottom, 20)
 
@@ -609,8 +617,13 @@ private struct DemoPickerSheet: View {
                 VStack(spacing: 12) {
                     ForEach(demoTemplates) { entry in
                         Button(action: {
-                            videoVM.loadDemoTemplate(entry)
-                            isPresented = false
+                            if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
+                                isPresented = false
+                                showPaywall = true
+                            } else {
+                                videoVM.loadDemoTemplate(entry)
+                                isPresented = false
+                            }
                         }) {
                             HStack(spacing: 16) {
                                 // 大 emoji 图标

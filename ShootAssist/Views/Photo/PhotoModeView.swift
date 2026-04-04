@@ -15,6 +15,8 @@ struct PhotoModeView: View {
     @State private var shareButtonVisible = false
     @State private var showComparisonShare = false   // 对比拼图分享面板
     @State private var comparisonImage: UIImage? = nil
+    @State private var showPoseGuide = false         // Pose 引导面板
+    @State private var activePose: PoseData? = nil   // 当前选中的 Pose 引导
 
     var body: some View {
         ZStack {
@@ -33,6 +35,12 @@ struct PhotoModeView: View {
                     Text("照片模式")
                         .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                     Spacer()
+                    Button(action: { showPoseGuide = true }) {
+                        Image(systemName: "figure.arms.open")
+                            .font(.system(size: 16)).foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Pose 引导")
                     Button(action: { cameraVM.toggleFlash() }) {
                         Image(systemName: cameraVM.flashIcon)
                             .font(.system(size: 18)).foregroundColor(.white)
@@ -72,6 +80,42 @@ struct PhotoModeView: View {
                 ZStack {
                     CameraPreviewView(session: cameraVM.session)
                         .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
+
+                    // Pose 引导悬浮卡（选中 Pose 后显示在左上角）
+                    if let pose = activePose {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Text(pose.icon.isEmpty ? "🧍" : "")
+                                    .font(.system(size: 18))
+                                Text(pose.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button(action: { activePose = nil }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .font(.system(size: 16))
+                                }
+                            }
+                            Text(pose.description)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.85))
+                            ForEach(pose.tips.prefix(2), id: \.self) { tip in
+                                Text("· \(tip)")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                            Text("📐 \(pose.cameraAngle)")
+                                .font(.system(size: 10))
+                                .foregroundColor(.rosePink.opacity(0.9))
+                        }
+                        .padding(10)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color.black.opacity(0.6)))
+                        .padding(.top, 8).padding(.leading, 8)
+                        .frame(maxWidth: 200, maxHeight: .infinity, alignment: .topLeading)
+                        .transition(.opacity.combined(with: .move(edge: .leading)))
+                        .animation(.easeInOut(duration: 0.25), value: activePose?.id)
+                    }
 
                     // 辅助叠加层（Vision AI 驱动 + 骨骼线 + Pose 匹配）
                     PhotoOverlayView(
@@ -209,6 +253,9 @@ struct PhotoModeView: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView().environmentObject(subManager)
+        }
+        .sheet(isPresented: $showPoseGuide) {
+            PoseGuideSheet(activePose: $activePose, isPresented: $showPoseGuide)
         }
         // 对比拼图分享面板
         .sheet(isPresented: $showComparisonShare) {
@@ -612,5 +659,105 @@ private struct LowLightHint: View {
             .background(Capsule().fill(Color.black.opacity(0.6)))
             .padding(.bottom, 100)
         }
+    }
+}
+
+// MARK: - Pose 引导面板（相机内浏览 + 一键选中）
+
+private struct PoseGuideSheet: View {
+    @Binding var activePose: PoseData?
+    @Binding var isPresented: Bool
+    @State private var selectedCategory: PoseCategory? = poseDatabase.first
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                // 分类横向滚动
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(poseDatabase) { cat in
+                            Button(action: { selectedCategory = cat }) {
+                                HStack(spacing: 4) {
+                                    Text(cat.icon).font(.system(size: 14))
+                                    Text(cat.name).font(.system(size: 13, weight: .medium))
+                                }
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(
+                                    Capsule().fill(selectedCategory?.id == cat.id
+                                        ? Color.rosePink : Color.rosePink.opacity(0.12))
+                                )
+                                .foregroundColor(selectedCategory?.id == cat.id ? .white : .berryBrown)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                }
+
+                Divider()
+
+                // Pose 列表
+                if let category = selectedCategory {
+                    ScrollView {
+                        VStack(spacing: 10) {
+                            ForEach(category.poses) { pose in
+                                Button(action: {
+                                    activePose = pose
+                                    isPresented = false
+                                }) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: pose.icon)
+                                            .font(.system(size: 22))
+                                            .foregroundColor(.rosePink)
+                                            .frame(width: 44, height: 44)
+                                            .background(Circle().fill(Color.rosePink.opacity(0.1)))
+
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            HStack {
+                                                Text(pose.name)
+                                                    .font(.system(size: 14, weight: .semibold))
+                                                    .foregroundColor(.berryBrown)
+                                                Spacer()
+                                                Text(String(repeating: "★", count: pose.difficulty))
+                                                    .font(.system(size: 10))
+                                                    .foregroundColor(.honeyOrange)
+                                            }
+                                            Text(pose.description)
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.midBerryBrown)
+                                                .lineLimit(1)
+                                            Text("📐 \(pose.cameraAngle) · 适合\(pose.bestFor)")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.midBerryBrown.opacity(0.7))
+                                                .lineLimit(1)
+                                        }
+
+                                        Image(systemName: "camera.viewfinder")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.rosePink.opacity(0.6))
+                                    }
+                                    .padding(12)
+                                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.warmCream))
+                                }
+                            }
+                        }
+                        .padding(16)
+                    }
+                }
+            }
+            .navigationTitle("Pose 引导")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") { isPresented = false }
+                }
+                ToolbarItem(placement: .primaryAction) {
+                    if activePose != nil {
+                        Button("清除引导") { activePose = nil; isPresented = false }
+                            .foregroundColor(.midBerryBrown)
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

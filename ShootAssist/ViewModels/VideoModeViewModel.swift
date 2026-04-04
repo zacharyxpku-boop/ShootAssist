@@ -24,10 +24,35 @@ class VideoModeViewModel: ObservableObject {
     @Published var isTemplatePlaybackActive = false
     @Published var analysisErrorMessage: String? = nil
 
-    // MARK: - Demo 模板（免费体验）
+    // MARK: - Demo 模板（免费体验，每日3次）
     @Published var isDemoMode: Bool = false
     @Published var currentDemoEntry: DemoEntry? = nil
     @Published var showPostDemoBanner: Bool = false
+
+    static let freeDanceLimitPerDay = 3
+    @AppStorage("sa_dance_date")  private var danceDateStr: String = ""
+    @AppStorage("sa_dance_count") private var danceCount: Int = 0
+
+    var freeDanceRemaining: Int {
+        let today = Self.todayString()
+        if danceDateStr != today { return Self.freeDanceLimitPerDay }
+        return max(0, Self.freeDanceLimitPerDay - danceCount)
+    }
+
+    func recordDanceUse() {
+        let today = Self.todayString()
+        if danceDateStr != today { danceDateStr = today; danceCount = 0 }
+        danceCount += 1
+    }
+
+    func isDanceLimitReached(isPro: Bool) -> Bool {
+        guard !isPro else { return false }
+        return freeDanceRemaining <= 0
+    }
+
+    private static func todayString() -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f.string(from: Date())
+    }
 
     // MARK: - Vision 实时关键点（从 CameraViewModel 传入）
     @Published var liveJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
@@ -154,6 +179,7 @@ class VideoModeViewModel: ObservableObject {
     // MARK: - 加载 Demo 模板（无需导入视频，直接体验）
 
     func loadDemoTemplate(_ entry: DemoEntry) {
+        recordDanceUse()
         isDemoMode = true
         currentDemoEntry = entry
         importedTemplate = entry.template
@@ -182,25 +208,31 @@ class VideoModeViewModel: ObservableObject {
 
     // MARK: - 对口型歌词滚动
 
+    private var lyricStartDate: Date?
+
     func startLyricScroll() {
         stopLyricScroll(); currentLyricIndex = 0; simulatedPlaybackTime = 0
-        lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-            guard let self else { return }
+        lyricStartDate = Date()
+        lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self, let start = self.lyricStartDate else { return }
             DispatchQueue.main.async {
-                self.simulatedPlaybackTime += 0.1
+                // 用 Date 计算精确时间，避免 timer 累加漂移
+                let elapsed = Date().timeIntervalSince(start)
+                self.simulatedPlaybackTime = elapsed
                 let lines = self.selectedSong.lines
-                let newIndex = lines.lastIndex(where: { $0.startTime <= self.simulatedPlaybackTime }) ?? 0
+                let newIndex = lines.lastIndex(where: { $0.startTime <= elapsed }) ?? 0
                 if newIndex != self.currentLyricIndex {
                     withAnimation(.easeInOut(duration: 0.3)) { self.currentLyricIndex = newIndex }
                 }
-                if let last = lines.last, self.simulatedPlaybackTime > last.endTime + 1.0 {
+                if let last = lines.last, elapsed > last.endTime + 1.0 {
+                    self.lyricStartDate = Date()
                     self.simulatedPlaybackTime = 0; self.currentLyricIndex = 0
                 }
             }
         }
     }
 
-    func stopLyricScroll() { lyricTimer?.invalidate(); lyricTimer = nil; simulatedPlaybackTime = 0 }
+    func stopLyricScroll() { lyricTimer?.invalidate(); lyricTimer = nil; simulatedPlaybackTime = 0; lyricStartDate = nil }
 
     // MARK: - 延时倒计时
 
