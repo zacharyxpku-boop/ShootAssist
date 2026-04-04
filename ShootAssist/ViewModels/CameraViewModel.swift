@@ -141,6 +141,7 @@ class CameraViewModel: NSObject, ObservableObject {
     // MARK: - 切换摄像头
 
     func switchCamera() {
+        let currentlyFront = isFrontCamera  // 主线程捕获，避免后台线程读脏值
         sessionQueue.async { [weak self] in
             guard let self else { return }
             self.session.beginConfiguration()
@@ -153,20 +154,19 @@ class CameraViewModel: NSObject, ObservableObject {
                 }
             }
 
-            let newPosition: AVCaptureDevice.Position = self.isFrontCamera ? .back : .front
+            let newPosition: AVCaptureDevice.Position = currentlyFront ? .back : .front
             guard let newDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: newPosition),
-                  let newInput  = try? AVCaptureDeviceInput(device: newDevice) else {
-                self.session.commitConfiguration(); return
+                  let newInput  = try? AVCaptureDeviceInput(device: newDevice),
+                  self.session.canAddInput(newInput) else {
+                self.session.commitConfiguration(); return  // 切换失败，不更新 UI 状态
             }
-            if self.session.canAddInput(newInput) {
-                self.session.addInput(newInput)
-                self.currentDevice = newDevice
-            }
+            self.session.addInput(newInput)
+            self.currentDevice = newDevice
             self.session.commitConfiguration()
 
             DispatchQueue.main.async {
-                self.isFrontCamera.toggle()
-                self.visionService.isFrontCamera = self.isFrontCamera
+                self.isFrontCamera = !currentlyFront
+                self.visionService.isFrontCamera = !currentlyFront
             }
         }
     }
