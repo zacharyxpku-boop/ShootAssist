@@ -144,7 +144,7 @@ workflows:
             --config Release
 
     artifacts:
-      - $CM_BUILD_DIR/output/ios/*.ipa
+      - build/ios/ipa/*.ipa
 
     publishing:
       app_store_connect:
