@@ -44,12 +44,12 @@ let poseDatabase: [PoseCategory] = [
     PoseCategory(name: "闺蜜照", icon: "👯‍♀️", poses: [
         PoseData(name: "勾肩搭背", description: "互相搂肩膀", tips: ["身高差大的可以歪头", "表情越夸张越好玩", "腿可以交叉站"], difficulty: 1, bestFor: "出游、聚会", cameraAngle: "平视", icon: "person.2.fill"),
         PoseData(name: "比心合照", description: "两人各出一只手组成心形", tips: ["手要贴紧", "可以用大心或小心", "笑得灿烂一点"], difficulty: 1, bestFor: "合影", cameraAngle: "平视", icon: "heart"),
-        PoseData(name: "跳跃定格", description: "一起跳起来", tips: ["数到三一起跳", "用连拍", "表情越搞怪越好"], difficulty: 3, bestFor: "海边、草地", cameraAngle: "微仰", icon: "figure.jumprope"),
+        PoseData(name: "跳跃定格", description: "一起跳起来", tips: ["数到三一起跳", "用连拍", "表情越搞怪越好"], difficulty: 3, bestFor: "海边、草地", cameraAngle: "微仰", icon: "figure.walk"),
         PoseData(name: "回头对视", description: "并排站，同时回头看镜头", tips: ["保持一定距离", "一人笑一人酷", "头发飘起加分"], difficulty: 2, bestFor: "街拍", cameraAngle: "跟拍", icon: "arrow.turn.up.left"),
     ]),
     PoseCategory(name: "美食", icon: "🍰", poses: [
         PoseData(name: "举起美食", description: "将食物举到脸旁", tips: ["食物靠近脸但别挡脸", "表情要馋", "背景简洁"], difficulty: 1, bestFor: "探店、美食分享", cameraAngle: "微俯15°", icon: "fork.knife"),
-        PoseData(name: "假装吃", description: "叉子/筷子送到嘴边", tips: ["嘴巴微张", "眼睛看食物", "手的姿势要优雅"], difficulty: 1, bestFor: "餐厅", cameraAngle: "平视", icon: "mouth"),
+        PoseData(name: "假装吃", description: "叉子/筷子送到嘴边", tips: ["嘴巴微张", "眼睛看食物", "手的姿势要优雅"], difficulty: 1, bestFor: "餐厅", cameraAngle: "平视", icon: "fork.knife"),
         PoseData(name: "俯拍摆盘", description: "从正上方拍桌面上的食物", tips: ["盘子周围放装饰", "手可以入镜", "光线要亮"], difficulty: 1, bestFor: "下午茶、早餐", cameraAngle: "俯拍90°", icon: "camera.viewfinder"),
     ]),
     PoseCategory(name: "街拍", icon: "🏙️", poses: [

@@ -85,8 +85,9 @@ struct PhotoModeView: View {
                     if let pose = activePose {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack(spacing: 6) {
-                                Text(pose.icon.isEmpty ? "🧍" : "")
-                                    .font(.system(size: 18))
+                                Image(systemName: pose.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.rosePink)
                                 Text(pose.name)
                                     .font(.system(size: 13, weight: .semibold))
                                     .foregroundColor(.white)
