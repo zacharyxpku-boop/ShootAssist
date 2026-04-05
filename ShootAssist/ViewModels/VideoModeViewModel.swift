@@ -156,10 +156,10 @@ class VideoModeViewModel: ObservableObject {
     }
 
     func stopLipSyncAudio() {
+        let wasPlaying = lipSyncAudioPlayer?.isPlaying ?? false
         lipSyncAudioPlayer?.stop()
         lipSyncAudioPlayer = nil
-        // 对口型录制结束后释放 session（与手势舞路径对齐，由 deactivateAudioSessionIfIdle 兜底）
-        deactivateAudioSessionIfIdle()
+        if wasPlaying { deactivateAudioSessionIfIdle() }
     }
 
     // MARK: - 导入视频并分析（含 90s 超时保护；成功后记录一次使用）

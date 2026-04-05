@@ -256,11 +256,15 @@ struct VideoModeView: View {
         }
         .sheet(isPresented: $showShareVideo) {
             if let url = shareVideoURL {
-                ShareSheet(items: [url, ReferralManager.shareAppendText()]) {
-                    Analytics.track(Analytics.Event.videoShared)
-                    Analytics.track(Analytics.Event.referralGenerated)
-                    showShareVideo = false
-                }
+                ShareSheet(
+                    items: [url, ReferralManager.shareAppendText()],
+                    onDismiss: { showShareVideo = false },
+                    onComplete: {
+                        ReferralManager.recordShareAction()
+                        Analytics.track(Analytics.Event.videoShared)
+                        Analytics.track(Analytics.Event.referralGenerated)
+                    }
+                )
             }
         }
         .sheet(isPresented: $videoVM.showVideoPicker) {
@@ -292,6 +296,7 @@ struct VideoModeView: View {
                 Image(systemName: "music.note.list")
                     .font(.system(size: 18)).foregroundColor(.white).frame(width: 44, height: 44)
             }
+            .disabled(cameraVM.isRecording)
         case .videoTemplate:
             // 免费用户每日10次，达上限才引导 Pro；分析中禁止重复导入
             Button(action: {

@@ -19,14 +19,27 @@ class VideoWatermarkService {
         label: String = "小白快门制作",
         completion: @escaping (URL?) -> Void
     ) {
+        Task {
+            do {
+                let result = try await addWatermarkAsync(to: inputURL, label: label)
+                await MainActor.run { completion(result) }
+            } catch {
+                await MainActor.run { completion(inputURL) }
+            }
+        }
+    }
+
+    private func addWatermarkAsync(to inputURL: URL, label: String) async throws -> URL {
         let asset = AVURLAsset(url: inputURL)
 
-        guard let videoTrack = asset.tracks(withMediaType: .video).first else {
-            completion(nil); return
-        }
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        guard let videoTrack = videoTracks.first else { return inputURL }
 
-        let naturalSize = videoTrack.naturalSize.applying(videoTrack.preferredTransform)
+        let naturalSize = try await videoTrack.load(.naturalSize)
+            .applying(try await videoTrack.load(.preferredTransform))
         let videoSize = CGSize(width: abs(naturalSize.width), height: abs(naturalSize.height))
+        let preferredTransform = try await videoTrack.load(.preferredTransform)
+        let duration = try await asset.load(.duration)
 
         // MARK: 构建水印 CALayer
         let watermarkLayer = makeWatermarkLayer(text: label, videoSize: videoSize)
@@ -40,41 +53,38 @@ class VideoWatermarkService {
         parentLayer.addSublayer(watermarkLayer)
 
         // MARK: 合成
-        let composition         = AVMutableComposition()
-        let videoComposition    = AVMutableVideoComposition()
+        let composition      = AVMutableComposition()
+        let videoComposition = AVMutableVideoComposition()
 
         guard
-            let compVideoTrack  = composition.addMutableTrack(
+            let compVideoTrack = composition.addMutableTrack(
                 withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
-            let compAudioTrack  = composition.addMutableTrack(
+            let compAudioTrack = composition.addMutableTrack(
                 withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
-        else { completion(nil); return }
+        else { return inputURL }
 
-        let duration = asset.duration
         let timeRange = CMTimeRange(start: .zero, duration: duration)
 
-        do {
-            try compVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
-            if let audioTrack = asset.tracks(withMediaType: .audio).first {
-                try compAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
-            }
-        } catch {
-            completion(nil); return
+        try compVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
+
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        if let audioTrack = audioTracks.first {
+            try compAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
         }
 
-        compVideoTrack.preferredTransform = videoTrack.preferredTransform
+        compVideoTrack.preferredTransform = preferredTransform
 
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = timeRange
 
         let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compVideoTrack)
-        layerInstruction.setTransform(videoTrack.preferredTransform, at: .zero)
+        layerInstruction.setTransform(preferredTransform, at: .zero)
         instruction.layerInstructions = [layerInstruction]
 
-        videoComposition.instructions         = [instruction]
-        videoComposition.frameDuration        = CMTime(value: 1, timescale: 30)
-        videoComposition.renderSize           = videoSize
-        videoComposition.animationTool        = AVVideoCompositionCoreAnimationTool(
+        videoComposition.instructions      = [instruction]
+        videoComposition.frameDuration     = CMTime(value: 1, timescale: 30)
+        videoComposition.renderSize        = videoSize
+        videoComposition.animationTool     = AVVideoCompositionCoreAnimationTool(
             postProcessingAsVideoLayer: videoLayer,
             in: parentLayer
         )
@@ -87,23 +97,15 @@ class VideoWatermarkService {
         guard let exportSession = AVAssetExportSession(
             asset: composition,
             presetName: AVAssetExportPresetHighestQuality
-        ) else { completion(nil); return }
+        ) else { return inputURL }
 
         exportSession.outputURL          = outputURL
         exportSession.outputFileType     = .mov
         exportSession.videoComposition   = videoComposition
         exportSession.shouldOptimizeForNetworkUse = true
 
-        exportSession.exportAsynchronously {
-            DispatchQueue.main.async {
-                if exportSession.status == .completed {
-                    completion(outputURL)
-                } else {
-                    // 水印合成失败，返回原始文件（降级处理）
-                    completion(inputURL)
-                }
-            }
-        }
+        await exportSession.export()
+        return exportSession.status == .completed ? outputURL : inputURL
     }
 
     // MARK: - 水印 CALayer

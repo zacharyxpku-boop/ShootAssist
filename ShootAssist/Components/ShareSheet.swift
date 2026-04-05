@@ -6,10 +6,12 @@ import UIKit
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
     var onDismiss: (() -> Void)? = nil
+    var onComplete: (() -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        vc.completionWithItemsHandler = { _, _, _, _ in
+        vc.completionWithItemsHandler = { _, completed, _, _ in
+            if completed { onComplete?() }
             onDismiss?()
         }
         return vc

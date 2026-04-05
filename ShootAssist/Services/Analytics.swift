@@ -4,6 +4,8 @@ import Foundation
 
 struct Analytics {
 
+    private static let dateFormatter: ISO8601DateFormatter = ISO8601DateFormatter()
+
     // MARK: - 写入事件
 
     /// 记录一条事件，可附带任意属性
@@ -11,7 +13,7 @@ struct Analytics {
         var events = UserDefaults.standard.array(forKey: "analytics_events") as? [[String: Any]] ?? []
         var eventData: [String: Any] = [
             "event": event,
-            "timestamp": ISO8601DateFormatter().string(from: Date())
+            "timestamp": dateFormatter.string(from: Date())
         ]
         properties.forEach { eventData[$0.key] = $0.value }
         events.append(eventData)

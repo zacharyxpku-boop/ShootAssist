@@ -15,11 +15,9 @@ struct ReferralManager {
         return code
     }
 
-    /// 带邀请码的分享文案，拼接在照片/视频分享文字末尾
-    /// 每次调用计入一次分享（用于统计页展示）
+    /// 带邀请码的分享文案，拼接在照片/视频分享文字末尾（纯函数，不记录分享次数）
     static func shareAppendText() -> String {
         let code = getReferralCode()
-        recordShareAction()
         return "\n用小白快门拍出同款 📸 邀请码: \(code)"
     }
 

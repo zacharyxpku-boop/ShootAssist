@@ -228,7 +228,9 @@ struct PhotoModeView: View {
                 .padding(.bottom, 100)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .sheet(isPresented: $showShareSheet) {
-                    ShareSheet(items: [img, ReferralManager.shareAppendText()]) { shareButtonVisible = false }
+                    ShareSheet(items: [img, ReferralManager.shareAppendText()],
+                               onDismiss: { shareButtonVisible = false },
+                               onComplete: { ReferralManager.recordShareAction() })
                 }
             }
         }
@@ -636,11 +638,15 @@ private struct ComparisonShareSheet: View {
         .presentationDetents([.medium])
         .presentationDragIndicator(.hidden)
         .sheet(isPresented: $showSystemShare) {
-            ShareSheet(items: [image, ReferralManager.shareAppendText()]) {
-                Analytics.track(Analytics.Event.comparisonCardShared)
-                Analytics.track(Analytics.Event.referralGenerated)
-                showSystemShare = false; onDismiss()
-            }
+            ShareSheet(
+                items: [image, ReferralManager.shareAppendText()],
+                onDismiss: { showSystemShare = false; onDismiss() },
+                onComplete: {
+                    ReferralManager.recordShareAction()
+                    Analytics.track(Analytics.Event.comparisonCardShared)
+                    Analytics.track(Analytics.Event.referralGenerated)
+                }
+            )
         }
     }
 }
