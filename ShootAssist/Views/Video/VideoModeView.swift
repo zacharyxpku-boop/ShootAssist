@@ -415,16 +415,34 @@ private struct VideoTemplateOverlay: View {
     let viewSize: CGSize
 
     var body: some View {
-        VStack(spacing: 6) {
-            Spacer()
+        ZStack {
+            // 空闲状态（未导入 / 未开始录制）保持在底部，不遮挡拍摄区域
+            if viewModel.currentTemplateMove == nil {
+                VStack(spacing: 6) {
+                    if viewModel.importedTemplate == nil {
+                        Image(systemName: "video.badge.plus")
+                            .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
+                        Text("导入一段舞蹈视频").font(.system(size: 13)).foregroundColor(.white.opacity(0.4))
+                        Text("自动提取手势做引导").font(.system(size: 11)).foregroundColor(.white.opacity(0.3))
+                    } else if !viewModel.isTemplatePlaybackActive {
+                        Image(systemName: "play.circle")
+                            .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
+                        Text("按下录制按钮开始跟拍").font(.system(size: 13)).foregroundColor(.white.opacity(0.5))
+                    }
+                }
+                .position(x: viewSize.width / 2, y: viewSize.height * 0.82)
+            }
 
+            // 跟拍进行中：emoji 定位在画面上方 1/3 处，透明度 75%
+            // 拍摄者视线平视摄像头时正好能看到动作提示，不遮主体
             if let move = viewModel.currentTemplateMove {
                 VStack(spacing: 4) {
                     Text(move.emoji)
-                        .font(.system(size: 56))
+                        .font(.system(size: 60))
+                        .shadow(color: .black.opacity(0.3), radius: 4)
                         .transition(.asymmetric(
-                            insertion: .scale(scale: 1.4).combined(with: .opacity),
-                            removal: .scale(scale: 0.6).combined(with: .opacity)
+                            insertion: .scale(scale: 1.3).combined(with: .opacity),
+                            removal: .scale(scale: 0.7).combined(with: .opacity)
                         ))
                         .id("emoji_\(move.id)")
 
@@ -432,34 +450,21 @@ private struct VideoTemplateOverlay: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white)
                         .shadow(color: .black.opacity(0.5), radius: 3)
-                }
 
-                if let next = viewModel.nextTemplateMove {
-                    HStack(spacing: 4) {
-                        Text("下一个").font(.system(size: 10)).foregroundColor(.white.opacity(0.5))
-                        Text(next.emoji).font(.system(size: 18))
-                        Text(next.description).font(.system(size: 10)).foregroundColor(.white.opacity(0.5))
+                    if let next = viewModel.nextTemplateMove {
+                        HStack(spacing: 4) {
+                            Text("下一个").font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
+                            Text(next.emoji).font(.system(size: 18))
+                            Text(next.description).font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
+                        }
+                        .padding(.top, 2)
                     }
                 }
-            } else if viewModel.importedTemplate == nil {
-                VStack(spacing: 6) {
-                    Image(systemName: "video.badge.plus")
-                        .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
-                    Text("导入一段舞蹈视频").font(.system(size: 13)).foregroundColor(.white.opacity(0.4))
-                    Text("自动提取手势做引导").font(.system(size: 11)).foregroundColor(.white.opacity(0.3))
-                }
-            } else if !viewModel.isTemplatePlaybackActive {
-                VStack(spacing: 6) {
-                    Image(systemName: "play.circle")
-                        .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
-                    Text("按下录制按钮开始跟拍").font(.system(size: 13)).foregroundColor(.white.opacity(0.5))
-                }
+                .opacity(0.75)
+                .position(x: viewSize.width / 2, y: viewSize.height * 0.18)
+                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: viewModel.templateMoveIndex)
             }
         }
-        .padding(.horizontal, 20).padding(.bottom, 12)
-        .frame(height: viewSize.height * 0.30)
-        .position(x: viewSize.width / 2, y: viewSize.height * 0.85)
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: viewModel.templateMoveIndex)
     }
 }
 
