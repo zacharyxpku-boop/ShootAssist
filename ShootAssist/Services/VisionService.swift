@@ -45,9 +45,17 @@ class VisionService: NSObject, ObservableObject {
         frameCount += 1
         guard frameCount % analyzeEveryNFrames == 0 else { return }
 
-        // AVCaptureVideoDataOutput 始终提供原始未镜像帧（预览层的镜像不影响 sampleBuffer）
-        // 因此 Vision 始终以 .up 处理原始帧，再在提取关节后手动翻转前摄 x 坐标
-        let handler = VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .up)
+        // 使用 CVPixelBuffer 而非直接传 CMSampleBuffer：避免 VNImageRequestHandler 持有
+        // sampleBuffer 引用导致累积内存泄漏（iOS 17+ 会触发 Jetsam 强杀）
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+
+        // 前摄用 .upMirrored：告知 Vision 输入帧是水平镜像的（dataOutput 不自动镜像）
+        // Vision 内部自动校正坐标，输出坐标可直接对应预览层（预览层对前摄自动镜像）
+        // 后摄用 .up：无需任何变换
+        let orientation: CGImagePropertyOrientation = isFrontCamera ? .upMirrored : .up
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: orientation)
 
         // 每次创建新的 Request 实例——避免跨线程复用导致数据竞争
         let personReq = VNDetectHumanRectanglesRequest()
@@ -69,11 +77,9 @@ class VisionService: NSObject, ObservableObject {
         let hasPerson = personResult != nil
         let faceBox = faceResult?.boundingBox ?? .zero
         let hasFace = faceResult != nil
-        // 前摄：水平翻转 x 坐标，匹配预览层镜像（预览层对前摄自动做了水平镜像）
-        var joints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
-        if isFrontCamera {
-            joints = joints.mapValues { CGPoint(x: 1.0 - $0.x, y: $0.y) }
-        }
+        // .upMirrored 时 Vision 已自动校正坐标，无需手动翻转
+        let joints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
+
         let advice = hasPerson ? self.analyzeComposition(personBox: personBox) : CompositionAdvice(
             isGood: false, tips: ["画面中没有检测到人物"],
             personBox: .zero, suggestedAction: "请对准人物 📷",
@@ -109,21 +115,24 @@ class VisionService: NSObject, ObservableObject {
         return extractJoints(from: observation)
     }
 
-    // MARK: - 提取关键点
+    // MARK: - 提取关键点（分关节置信度阈值，减少低置信度点引起的骨骼抖动）
+    private static let jointConfidenceThresholds: [VNHumanBodyPoseObservation.JointName: Float] = [
+        .nose: 0.5, .neck: 0.6,
+        .leftShoulder: 0.7, .rightShoulder: 0.7,
+        .leftElbow: 0.6,    .rightElbow: 0.6,
+        .leftWrist: 0.5,    .rightWrist: 0.5,
+        .leftHip: 0.7,      .rightHip: 0.7,
+        .leftKnee: 0.6,     .rightKnee: 0.6,
+        .leftAnkle: 0.4,    .rightAnkle: 0.4,
+        .root: 0.8
+    ]
+
     private func extractJoints(from observation: VNHumanBodyPoseObservation) -> [VNHumanBodyPoseObservation.JointName: CGPoint] {
         var joints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
-        let keys: [VNHumanBodyPoseObservation.JointName] = [
-            .nose, .neck,
-            .leftShoulder, .rightShoulder,
-            .leftElbow, .rightElbow,
-            .leftWrist, .rightWrist,
-            .leftHip, .rightHip,
-            .leftKnee, .rightKnee,
-            .leftAnkle, .rightAnkle,
-            .root
-        ]
+        let keys = Array(Self.jointConfidenceThresholds.keys)
         for key in keys {
-            if let point = try? observation.recognizedPoint(key), point.confidence > 0.3 {
+            let threshold = Self.jointConfidenceThresholds[key] ?? 0.3
+            if let point = try? observation.recognizedPoint(key), point.confidence > threshold {
                 joints[key] = CGPoint(x: point.location.x, y: point.location.y)
             }
         }
