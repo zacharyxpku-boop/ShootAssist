@@ -34,6 +34,8 @@
 	<string>需要访问相册以导入参考照片或舞蹈视频</string>
 	<key>NSPhotoLibraryLimitedAccessUsageDescription</key>
 	<string>您已选择有限访问权限。如需导入更多参考照片，可在设置中调整为「完全访问」</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>识别您上传音乐中的歌词，自动生成对口型提示字幕</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

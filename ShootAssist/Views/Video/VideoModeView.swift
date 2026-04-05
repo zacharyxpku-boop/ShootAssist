@@ -11,6 +11,7 @@ struct VideoModeView: View {
     @State private var showShareVideo = false
     @State private var shareVideoURL: URL? = nil
     @State private var isPreparingShare = false
+    @State private var showAudioPicker = false
 
     var body: some View {
         ZStack {
@@ -27,13 +28,22 @@ struct VideoModeView: View {
                     Spacer()
                     Text("视频模式").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                     Spacer()
-                    // 右上角按钮随模式变化
+                    // 前后摄切换（所有模式通用）
+                    Button(action: { cameraVM.switchCamera() }) {
+                        Image(systemName: "camera.rotate")
+                            .font(.system(size: 17))
+                            .foregroundColor(.white)
+                            .frame(width: 40, height: 44)
+                    }
+                    .accessibilityLabel("切换摄像头")
+                    .accessibilityValue(cameraVM.isFrontCamera ? "前置" : "后置")
+                    // 右上角模式按钮
                     topRightButton
                 }
                 .padding(.horizontal, 8).background(Color.black)
 
                 // 模式切换
-                VideoSubModeTab(selected: $videoVM.currentSubMode, isPro: subManager.isPro)
+                VideoSubModeTab(selected: $videoVM.currentSubMode)
                     .padding(.vertical, 8).background(Color.black)
 
                 // 当前选择标签
@@ -75,7 +85,7 @@ struct VideoModeView: View {
                             // 对口型歌词
                             if videoVM.currentSubMode == .lipSync {
                                 LyricsView(
-                                    lines: videoVM.selectedSong.lines,
+                                    lines: videoVM.activeSong.lines,
                                     currentIndex: videoVM.currentLyricIndex,
                                     playbackTime: videoVM.simulatedPlaybackTime
                                 )
@@ -100,8 +110,15 @@ struct VideoModeView: View {
                         AnalyzingOverlay(progress: videoVM.analysisProgress)
                     }
 
+                    // 歌词识别中遮罩
+                    if videoVM.isRecognizingLyrics {
+                        LyricRecognizingOverlay(name: videoVM.customMusicName)
+                    }
+
                     // 低光提示
-                    if cameraVM.visionService.isLowLightWarning && videoVM.currentSubMode == .videoTemplate && !cameraVM.isRecording {
+                    if cameraVM.visionService.isLowLightWarning
+                        && videoVM.currentSubMode == .videoTemplate
+                        && !cameraVM.isRecording {
                         VStack {
                             Spacer()
                             HStack(spacing: 8) {
@@ -146,11 +163,23 @@ struct VideoModeView: View {
                         if cameraVM.isRecording {
                             cameraVM.stopRecording()
                             videoVM.stopTemplatePlayback()
+                            if videoVM.currentSubMode == .lipSync {
+                                videoVM.stopLipSyncAudio()
+                                videoVM.stopLyricScroll()
+                                videoVM.startLyricScroll()  // 恢复预览
+                            }
                         } else {
                             videoVM.startCountdown {
                                 cameraVM.startRecording()
                                 if videoVM.currentSubMode == .videoTemplate {
                                     videoVM.startTemplatePlayback()
+                                } else if videoVM.currentSubMode == .lipSync {
+                                    // 从头同步：先重启歌词滚动，再播放音频
+                                    videoVM.stopLyricScroll()
+                                    videoVM.startLyricScroll()
+                                    if videoVM.customMusicURL != nil {
+                                        videoVM.startLipSyncAudio()
+                                    }
                                 }
                             }
                         }
@@ -180,29 +209,42 @@ struct VideoModeView: View {
             videoVM.cancelCountdown()
             videoVM.stopLyricScroll()
             videoVM.stopTemplatePlayback()
+            videoVM.stopLipSyncAudio()
             cameraVM.stopSession()
         }
         .onChange(of: videoVM.currentSubMode) { newMode in
-            // 模式切换本身对所有用户开放；Pro 门控移至"导入视频"按钮
             cameraVM.enableVisionAnalysis = (newMode == .videoTemplate)
             handleSubModeChange()
         }
         .overlay { if cameraVM.permissionDenied { PermissionDeniedOverlay() } }
         .sheet(isPresented: $videoVM.showSongSelector) {
-            SongSelectorSheet(selectedSong: $videoVM.selectedSong, isPresented: $videoVM.showSongSelector)
-                .onDisappear { videoVM.stopLyricScroll(); videoVM.startLyricScroll() }
+            SongSelectorSheet(
+                videoVM: videoVM,
+                isPresented: $videoVM.showSongSelector,
+                showAudioPicker: $showAudioPicker
+            )
+            .onDisappear {
+                videoVM.stopLyricScroll()
+                videoVM.startLyricScroll()
+            }
+        }
+        .sheet(isPresented: $showAudioPicker) {
+            AudioPickerView { url in
+                showAudioPicker = false
+                guard let url else { return }
+                videoVM.importCustomAudio(url: url)
+            }
         }
         // 录制完成 → 加水印 → 显示分享横幅
         .onChange(of: cameraVM.lastSavedVideoURL) { url in
             guard let url else { return }
             showShareVideo = false; isPreparingShare = true
-            VideoWatermarkService.shared.addWatermark(to: url) { [self] watermarked in
+            VideoWatermarkService.shared.addWatermark(to: url) { watermarked in
                 self.shareVideoURL = watermarked ?? url
                 self.isPreparingShare = false
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                     self.showShareVideo = true
                 }
-                // 6s 后自动收起
                 DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
                     withAnimation { self.showShareVideo = false }
                 }
@@ -243,20 +285,22 @@ struct VideoModeView: View {
         switch videoVM.currentSubMode {
         case .lipSync:
             Button(action: { videoVM.showSongSelector = true }) {
-                Image(systemName: "music.note.list").font(.system(size: 18)).foregroundColor(.white).frame(width: 44, height: 44)
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 18)).foregroundColor(.white).frame(width: 44, height: 44)
             }
         case .videoTemplate:
-            // Pro 门控在「导入视频」动作上，而非模式切换
+            // 免费用户每日10次，达上限才引导 Pro
             Button(action: {
-                if subManager.isPro {
-                    videoVM.showVideoPicker = true
-                } else {
+                if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
                     showPaywall = true
+                } else {
+                    videoVM.showVideoPicker = true
                 }
             }) {
                 ZStack(alignment: .topTrailing) {
-                    Image(systemName: "video.badge.plus").font(.system(size: 18)).foregroundColor(.white)
-                    if !subManager.isPro {
+                    Image(systemName: "video.badge.plus")
+                        .font(.system(size: 18)).foregroundColor(.white)
+                    if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.honeyOrange)
@@ -273,8 +317,26 @@ struct VideoModeView: View {
         HStack {
             switch videoVM.currentSubMode {
             case .lipSync:
-                Text("🎵 \(videoVM.selectedSong.songName) - \(videoVM.selectedSong.artist)")
-                    .font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
+                if videoVM.isRecognizingLyrics {
+                    HStack(spacing: 6) {
+                        ProgressView().scaleEffect(0.7).tint(.white)
+                        Text("正在识别「\(videoVM.customMusicName)」的歌词…")
+                            .font(.system(size: 10)).foregroundColor(.white.opacity(0.7))
+                    }
+                } else if let custom = videoVM.customSongLyrics {
+                    HStack(spacing: 4) {
+                        Image(systemName: "music.note").font(.system(size: 10)).foregroundColor(.rosePink)
+                        Text("\(custom.songName) · 自定义")
+                            .font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
+                        if let err = videoVM.lyricRecognitionError {
+                            Text("·").foregroundColor(.white.opacity(0.3)).font(.system(size: 10))
+                            Text(err).font(.system(size: 9)).foregroundColor(.honeyOrange)
+                        }
+                    }
+                } else {
+                    Text("🎵 \(videoVM.selectedSong.songName) - \(videoVM.selectedSong.artist)")
+                        .font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
+                }
             case .videoTemplate:
                 if videoVM.isAnalyzing {
                     Text("⏳ 分析中… \(Int(videoVM.analysisProgress * 100))%")
@@ -284,7 +346,6 @@ struct VideoModeView: View {
                         .font(.system(size: 10)).foregroundColor(.orange.opacity(0.9))
                 } else if let t = videoVM.importedTemplate {
                     if videoVM.isDemoMode, let demo = videoVM.currentDemoEntry {
-                        // Demo 模式标签
                         HStack(spacing: 6) {
                             Text("\(demo.icon) Demo · \(demo.name) · \(t.emojiMoves.count) 个手势")
                                 .font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
@@ -299,7 +360,6 @@ struct VideoModeView: View {
                             .font(.system(size: 10)).foregroundColor(.white.opacity(0.6))
                     }
                 } else {
-                    // 未导入：引导用户先体验 Demo
                     HStack(spacing: 8) {
                         Button(action: { showDemoPicker = true }) {
                             HStack(spacing: 4) {
@@ -310,7 +370,12 @@ struct VideoModeView: View {
                             .padding(.horizontal, 10).padding(.vertical, 4)
                             .background(Capsule().fill(LinearGradient(colors: [.rosePink, .peachPink], startPoint: .leading, endPoint: .trailing)))
                         }
-                        Text("或点右上角导入视频").font(.system(size: 9)).foregroundColor(.white.opacity(0.4))
+                        if !subManager.isPro {
+                            Text("今日剩余 \(videoVM.freeDanceRemaining) 次")
+                                .font(.system(size: 9)).foregroundColor(.white.opacity(0.4))
+                        } else {
+                            Text("或点右上角导入视频").font(.system(size: 9)).foregroundColor(.white.opacity(0.4))
+                        }
                     }
                 }
             }
@@ -321,22 +386,23 @@ struct VideoModeView: View {
     private var leftButtonIcon: String {
         switch videoVM.currentSubMode {
         case .lipSync: return "music.note.list"
-        case .videoTemplate: return "sparkles"    // Demo 入口
+        case .videoTemplate: return "sparkles"
         }
     }
 
     private func handleLeftButton() {
         switch videoVM.currentSubMode {
         case .lipSync: videoVM.showSongSelector = true
-        case .videoTemplate: showDemoPicker = true   // 左键打开 Demo 选择
+        case .videoTemplate: showDemoPicker = true
         }
     }
 
     private func handleSubModeChange() {
-        videoVM.stopLyricScroll(); videoVM.stopTemplatePlayback()
+        videoVM.stopLyricScroll()
+        videoVM.stopTemplatePlayback()
         switch videoVM.currentSubMode {
         case .lipSync: videoVM.startLyricScroll()
-        case .videoTemplate: break  // 等用户导入视频
+        case .videoTemplate: break
         }
     }
 }
@@ -367,7 +433,6 @@ private struct VideoTemplateOverlay: View {
                         .shadow(color: .black.opacity(0.5), radius: 3)
                 }
 
-                // 下一个动作预告
                 if let next = viewModel.nextTemplateMove {
                     HStack(spacing: 4) {
                         Text("下一个").font(.system(size: 10)).foregroundColor(.white.opacity(0.5))
@@ -376,20 +441,16 @@ private struct VideoTemplateOverlay: View {
                     }
                 }
             } else if viewModel.importedTemplate == nil {
-                // 还没有导入视频
                 VStack(spacing: 6) {
                     Image(systemName: "video.badge.plus")
-                        .font(.system(size: 32))
-                        .foregroundColor(.white.opacity(0.4))
+                        .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
                     Text("导入一段舞蹈视频").font(.system(size: 13)).foregroundColor(.white.opacity(0.4))
                     Text("自动提取手势做引导").font(.system(size: 11)).foregroundColor(.white.opacity(0.3))
                 }
             } else if !viewModel.isTemplatePlaybackActive {
-                // 已分析完，等待开始录制
                 VStack(spacing: 6) {
                     Image(systemName: "play.circle")
-                        .font(.system(size: 32))
-                        .foregroundColor(.white.opacity(0.4))
+                        .font(.system(size: 32)).foregroundColor(.white.opacity(0.4))
                     Text("按下录制按钮开始跟拍").font(.system(size: 13)).foregroundColor(.white.opacity(0.5))
                 }
             }
@@ -401,20 +462,35 @@ private struct VideoTemplateOverlay: View {
     }
 }
 
+// MARK: - 歌词识别中遮罩
+
+private struct LyricRecognizingOverlay: View {
+    let name: String
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.65).ignoresSafeArea()
+            VStack(spacing: 14) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .rosePink))
+                    .scaleEffect(1.4)
+                Text("正在识别歌词").font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
+                Text(name.isEmpty ? "分析音频中…" : "「\(name)」")
+                    .font(.system(size: 12)).foregroundColor(.white.opacity(0.6))
+            }
+        }
+    }
+}
+
 // MARK: - 分析中遮罩
 
 private struct AnalyzingOverlay: View {
     let progress: Double
-
     var body: some View {
         ZStack {
             Color.black.opacity(0.7).ignoresSafeArea()
             VStack(spacing: 16) {
-                // 圆形进度
                 ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.15), lineWidth: 4)
-                        .frame(width: 64, height: 64)
+                    Circle().stroke(Color.white.opacity(0.15), lineWidth: 4).frame(width: 64, height: 64)
                     Circle()
                         .trim(from: 0, to: CGFloat(progress))
                         .stroke(
@@ -425,51 +501,36 @@ private struct AnalyzingOverlay: View {
                         .rotationEffect(.degrees(-90))
                         .animation(.easeInOut(duration: 0.2), value: progress)
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
                 }
-
-                Text("正在分析视频手势…")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.white)
-                Text("AI 正在识别每一帧的动作")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.6))
+                Text("正在分析视频手势…").font(.system(size: 14, weight: .medium)).foregroundColor(.white)
+                Text("AI 正在识别每一帧的动作").font(.system(size: 11)).foregroundColor(.white.opacity(0.6))
             }
         }
     }
 }
 
-// MARK: - 子组件（与原有保持一致）
+// MARK: - 子组件
 
 private struct VideoSubModeTab: View {
     @Binding var selected: VideoSubMode
-    let isPro: Bool
 
     var body: some View {
         HStack(spacing: 4) {
             ForEach(VideoSubMode.allCases) { mode in
-                let isLocked = (mode == .videoTemplate && !isPro)
                 Button(action: {
                     withAnimation(.easeInOut(duration: 0.2)) { selected = mode }
                 }) {
-                    HStack(spacing: 4) {
-                        Text(mode.rawValue)
-                            .font(.system(size: 12, weight: selected == mode ? .semibold : .regular))
-                        if isLocked {
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.honeyOrange.opacity(0.9))
-                        }
-                    }
-                    .foregroundColor(selected == mode ? .white : .white.opacity(0.5))
-                    .padding(.horizontal, 14).padding(.vertical, 7)
-                    .background(Group {
-                        if selected == mode {
-                            Capsule().fill(LinearGradient(colors: [.rosePink, .peachPink], startPoint: .leading, endPoint: .trailing))
-                                .shadow(color: .rosePink.opacity(0.3), radius: 4, y: 2)
-                        }
-                    })
+                    Text(mode.rawValue)
+                        .font(.system(size: 12, weight: selected == mode ? .semibold : .regular))
+                        .foregroundColor(selected == mode ? .white : .white.opacity(0.5))
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .background(Group {
+                            if selected == mode {
+                                Capsule().fill(LinearGradient(colors: [.rosePink, .peachPink], startPoint: .leading, endPoint: .trailing))
+                                    .shadow(color: .rosePink.opacity(0.3), radius: 4, y: 2)
+                            }
+                        })
                 }
             }
         }
@@ -539,28 +600,106 @@ private struct PermissionDeniedOverlay: View {
     }
 }
 
+// MARK: - 歌曲选择器（含自定义音乐上传）
+
 private struct SongSelectorSheet: View {
-    @Binding var selectedSong: SongLyrics; @Binding var isPresented: Bool
+    @ObservedObject var videoVM: VideoModeViewModel
+    @Binding var isPresented: Bool
+    @Binding var showAudioPicker: Bool
+
     var body: some View {
         NavigationStack {
-            List(lyricDatabase) { song in
-                Button(action: { selectedSong = song; isPresented = false }) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(song.songName).font(.system(size: 15, weight: .medium)).foregroundColor(.berryBrown)
-                            Text(song.artist).font(.system(size: 12)).foregroundColor(.midBerryBrown)
+            VStack(spacing: 0) {
+                // 上传自定义音乐
+                Button(action: {
+                    isPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showAudioPicker = true
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.and.arrow.up.circle.fill")
+                            .font(.system(size: 28)).foregroundColor(.rosePink)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("上传自己的音乐")
+                                .font(.system(size: 15, weight: .semibold)).foregroundColor(.berryBrown)
+                            Text(videoVM.customMusicURL != nil
+                                 ? "已上传：\(videoVM.customMusicName)"
+                                 : "从「文件」App 选择 MP3/M4A/WAV")
+                                .font(.system(size: 12)).foregroundColor(.midBerryBrown)
                         }
                         Spacer()
-                        if song.id == selectedSong.id {
-                            Image(systemName: "checkmark.circle.fill").foregroundColor(.rosePink)
+                        if videoVM.isRecognizingLyrics {
+                            ProgressView().scaleEffect(0.8)
+                        } else if videoVM.customSongLyrics != nil {
+                            Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14)).foregroundColor(.midBerryBrown.opacity(0.5))
                         }
                     }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.rosePink.opacity(0.07)))
                 }
+                .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 4)
+
+                // 识别错误提示
+                if let err = videoVM.lyricRecognitionError {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11)).foregroundColor(.honeyOrange)
+                        Text(err).font(.system(size: 11)).foregroundColor(.honeyOrange)
+                    }
+                    .padding(.horizontal, 20).padding(.bottom, 6)
+                }
+
+                // 清除自定义音乐
+                if videoVM.customMusicURL != nil && !videoVM.isRecognizingLyrics {
+                    Button(action: { videoVM.clearCustomMusic() }) {
+                        Text("移除自定义音乐，恢复内置歌曲")
+                            .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                    }
+                    .padding(.bottom, 8)
+                }
+
+                Divider().padding(.horizontal, 16)
+
+                Text("内置歌曲")
+                    .font(.system(size: 11, weight: .medium)).foregroundColor(.midBerryBrown)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16).padding(.top, 10).padding(.bottom, 4)
+
+                List(lyricDatabase) { song in
+                    Button(action: {
+                        videoVM.selectedSong = song
+                        videoVM.clearCustomMusic()
+                        isPresented = false
+                    }) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(song.songName)
+                                    .font(.system(size: 15, weight: .medium)).foregroundColor(.berryBrown)
+                                Text(song.artist)
+                                    .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                            }
+                            Spacer()
+                            if song.id == videoVM.selectedSong.id && videoVM.customSongLyrics == nil {
+                                Image(systemName: "checkmark.circle.fill").foregroundColor(.rosePink)
+                            }
+                        }
+                    }
+                    .listRowBackground(Color(hex: "FAFAF9"))
+                }
+                .listStyle(.plain)
             }
+            .background(Color(hex: "FAFAF9").ignoresSafeArea())
             .navigationTitle("选择歌曲").navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { isPresented = false } } }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("关闭") { isPresented = false } }
+            }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
@@ -569,7 +708,6 @@ private struct SongSelectorSheet: View {
 private struct VideoSaveProgressBanner: View {
     @State private var dots = ""
     private let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
-
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
@@ -582,9 +720,7 @@ private struct VideoSaveProgressBanner: View {
             .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.7)))
             .padding(.horizontal, 16).padding(.bottom, 8)
         }
-        .onReceive(timer) { _ in
-            dots = dots.count < 3 ? dots + "." : ""
-        }
+        .onReceive(timer) { _ in dots = dots.count < 3 ? dots + "." : "" }
     }
 }
 
@@ -599,7 +735,6 @@ private struct DemoPickerSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // 标题说明
                 VStack(spacing: 6) {
                     Text("选一个 Demo 先感受一下")
                         .font(.system(size: 16, weight: .semibold)).foregroundColor(.berryBrown)
@@ -613,40 +748,28 @@ private struct DemoPickerSheet: View {
                 }
                 .padding(.top, 8).padding(.bottom, 20)
 
-                // Demo 卡片列表
                 VStack(spacing: 12) {
                     ForEach(demoTemplates) { entry in
                         Button(action: {
                             if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
-                                isPresented = false
-                                showPaywall = true
+                                isPresented = false; showPaywall = true
                             } else {
-                                videoVM.loadDemoTemplate(entry)
-                                isPresented = false
+                                videoVM.loadDemoTemplate(entry); isPresented = false
                             }
                         }) {
                             HStack(spacing: 16) {
-                                // 大 emoji 图标
-                                Text(entry.icon)
-                                    .font(.system(size: 36))
+                                Text(entry.icon).font(.system(size: 36))
                                     .frame(width: 56, height: 56)
                                     .background(Circle().fill(Color.rosePink.opacity(0.1)))
 
                                 VStack(alignment: .leading, spacing: 4) {
                                     HStack(spacing: 8) {
-                                        Text(entry.name)
-                                            .font(.system(size: 16, weight: .semibold))
-                                            .foregroundColor(.berryBrown)
-                                        Text(entry.durationLabel)
-                                            .font(.system(size: 11))
-                                            .foregroundColor(.midBerryBrown)
+                                        Text(entry.name).font(.system(size: 16, weight: .semibold)).foregroundColor(.berryBrown)
+                                        Text(entry.durationLabel).font(.system(size: 11)).foregroundColor(.midBerryBrown)
                                             .padding(.horizontal, 6).padding(.vertical, 2)
                                             .background(Capsule().fill(Color.midBerryBrown.opacity(0.12)))
                                     }
-                                    Text(entry.description)
-                                        .font(.system(size: 12)).foregroundColor(.midBerryBrown)
-
-                                    // emoji 预览
+                                    Text(entry.description).font(.system(size: 12)).foregroundColor(.midBerryBrown)
                                     HStack(spacing: 2) {
                                         ForEach(entry.template.emojiMoves.prefix(6)) { move in
                                             Text(move.emoji).font(.system(size: 14))
@@ -656,16 +779,11 @@ private struct DemoPickerSheet: View {
                                         }
                                     }
                                 }
-
                                 Spacer()
-
-                                // 当前选中标记
                                 if videoVM.isDemoMode && videoVM.currentDemoEntry?.name == entry.name {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.rosePink).font(.system(size: 20))
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(.rosePink).font(.system(size: 20))
                                 } else {
-                                    Image(systemName: "chevron.right")
-                                        .foregroundColor(.midBerryBrown.opacity(0.4)).font(.system(size: 14))
+                                    Image(systemName: "chevron.right").foregroundColor(.midBerryBrown.opacity(0.4)).font(.system(size: 14))
                                 }
                             }
                             .padding(16)
@@ -679,14 +797,11 @@ private struct DemoPickerSheet: View {
                     }
                 }
                 .padding(.horizontal, 20)
-
                 Spacer()
             }
             .background(Color(hex: "FAFAF9").ignoresSafeArea())
             .navigationTitle("").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("关闭") { isPresented = false } }
-            }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("关闭") { isPresented = false } } }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
@@ -706,24 +821,19 @@ private struct PostDemoBanner: View {
             VStack(spacing: 12) {
                 HStack(spacing: 8) {
                     Text("🎉").font(.system(size: 20))
-                    Text("感觉还不错？")
-                        .font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
+                    Text("感觉还不错？").font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
                     Spacer()
                     Button(action: onDismiss) {
-                        Image(systemName: "xmark").font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.5))
+                        Image(systemName: "xmark").font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.5))
                     }
                 }
-
                 Text("导入你自己喜欢的舞蹈视频\nAI 自动变成你的专属跟拍引导")
                     .font(.system(size: 12)).foregroundColor(.white.opacity(0.75))
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
-
                 Button(action: onUpgrade) {
                     HStack(spacing: 6) {
                         Image(systemName: "crown.fill").font(.system(size: 12))
-                        Text("解锁 Pro · 导入任意视频")
-                            .font(.system(size: 13, weight: .semibold))
+                        Text("解锁 Pro · 导入任意视频").font(.system(size: 13, weight: .semibold))
                     }
                     .foregroundColor(.berryBrown)
                     .frame(maxWidth: .infinity).padding(.vertical, 11)

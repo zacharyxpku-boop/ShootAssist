@@ -2,6 +2,7 @@ import SwiftUI
 import Vision
 import AVFoundation
 import Combine
+import Speech
 
 class VideoModeViewModel: ObservableObject {
     @Published var currentSubMode: VideoSubMode = .videoTemplate
@@ -9,11 +10,22 @@ class VideoModeViewModel: ObservableObject {
     @Published var isCountingDown = false
     @Published var countdownValue = 3
 
-    // MARK: - 对口型歌词
+    // MARK: - 对口型歌词（预设）
     @Published var selectedSong: SongLyrics = lyricDatabase[0]
     @Published var currentLyricIndex = 0
     @Published var showSongSelector = false
     @Published var simulatedPlaybackTime: TimeInterval = 0
+
+    // MARK: - 对口型：用户自定义音乐
+    @Published var customMusicURL: URL?
+    @Published var customMusicName: String = ""
+    @Published var isRecognizingLyrics: Bool = false
+    @Published var customSongLyrics: SongLyrics?
+    @Published var lyricRecognitionError: String?
+    @Published var showAudioPicker: Bool = false
+
+    /// 当前生效的歌曲（自定义优先）
+    var activeSong: SongLyrics { customSongLyrics ?? selectedSong }
 
     // MARK: - 跟拍手势舞（视频模版）
     @Published var showVideoPicker = false
@@ -24,7 +36,7 @@ class VideoModeViewModel: ObservableObject {
     @Published var isTemplatePlaybackActive = false
     @Published var analysisErrorMessage: String? = nil
 
-    // MARK: - Demo 模板（免费体验，每日3次）
+    // MARK: - Demo 模板（免费体验，每日10次）
     @Published var isDemoMode: Bool = false
     @Published var currentDemoEntry: DemoEntry? = nil
     @Published var showPostDemoBanner: Bool = false
@@ -61,7 +73,8 @@ class VideoModeViewModel: ObservableObject {
     private var lyricTimer: Timer?
     private var templateTimer: Timer?
     private var cancellables = Set<AnyCancellable>()
-    private var audioPlayer: AVAudioPlayer?
+    private var audioPlayer: AVAudioPlayer?       // 手势舞模板音频
+    private var lipSyncAudioPlayer: AVAudioPlayer? // 对口型自定义音频
     private var templateGeneration: Int = 0
 
     // MARK: - 绑定 VisionService
@@ -74,7 +87,71 @@ class VideoModeViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    // MARK: - 导入视频并分析（含 90s 超时保护）
+    // MARK: - 自定义音乐导入 & 歌词识别
+
+    func importCustomAudio(url: URL) {
+        customMusicURL = url
+        customMusicName = url.deletingPathExtension().lastPathComponent
+        isRecognizingLyrics = true
+        lyricRecognitionError = nil
+        customSongLyrics = nil
+
+        Task {
+            let lines = await LyricRecognitionService.shared.recognizeLyrics(from: url)
+            await MainActor.run {
+                self.isRecognizingLyrics = false
+                if lines.isEmpty {
+                    self.lyricRecognitionError = "未识别到歌词，将显示节拍提示"
+                    let beatLines: [LyricLine] = (0..<30).map { i in
+                        LyricLine(text: "♪  ♪  ♪",
+                                  startTime: Double(i) * 2.0,
+                                  endTime:   Double(i) * 2.0 + 2.0)
+                    }
+                    self.customSongLyrics = SongLyrics(songName: self.customMusicName,
+                                                       artist: "自定义",
+                                                       lines: beatLines)
+                } else {
+                    self.customSongLyrics = SongLyrics(songName: self.customMusicName,
+                                                       artist: "自定义",
+                                                       lines: lines)
+                }
+                // 用新歌词重启预览滚动
+                self.stopLyricScroll()
+                self.startLyricScroll()
+            }
+        }
+    }
+
+    func clearCustomMusic() {
+        customMusicURL = nil
+        customMusicName = ""
+        customSongLyrics = nil
+        lyricRecognitionError = nil
+        stopLipSyncAudio()
+        // 不在这里重启 lyricScroll，由调用方（sheet onDisappear）决定
+    }
+
+    // MARK: - 对口型音频播放（录制期间同步播放）
+
+    func startLipSyncAudio() {
+        guard let url = customMusicURL else { return }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                .playAndRecord,
+                options: [.defaultToSpeaker, .mixWithOthers]
+            )
+        } catch {}
+        lipSyncAudioPlayer = try? AVAudioPlayer(contentsOf: url)
+        lipSyncAudioPlayer?.prepareToPlay()
+        lipSyncAudioPlayer?.play()
+    }
+
+    func stopLipSyncAudio() {
+        lipSyncAudioPlayer?.stop()
+        lipSyncAudioPlayer = nil
+    }
+
+    // MARK: - 导入视频并分析（含 90s 超时保护；成功后记录一次使用）
 
     func importAndAnalyzeVideo(asset: AVAsset) {
         isAnalyzing = true
@@ -109,7 +186,9 @@ class VideoModeViewModel: ObservableObject {
                 } else if template.emojiMoves.isEmpty {
                     self.importedTemplate = template
                     self.analysisErrorMessage = "未检测到明显手势，建议选人物清晰的舞蹈视频"
+                    self.recordDanceUse()   // 分析成功但无手势，仍记录一次
                 } else {
+                    self.recordDanceUse()   // 分析成功，记录一次使用
                     self.importedTemplate = template
                 }
             }
@@ -142,7 +221,6 @@ class VideoModeViewModel: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 guard let self, self.templateGeneration == generation else { return }
                 self.stopTemplatePlayback()
-                // Demo 完成后显示升级提示
                 if self.isDemoMode {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
                         self.showPostDemoBanner = true
@@ -206,33 +284,40 @@ class VideoModeViewModel: ObservableObject {
         return next < t.emojiMoves.count ? t.emojiMoves[next] : nil
     }
 
-    // MARK: - 对口型歌词滚动
+    // MARK: - 对口型歌词滚动（使用 activeSong，支持自定义歌曲）
 
     private var lyricStartDate: Date?
 
     func startLyricScroll() {
-        stopLyricScroll(); currentLyricIndex = 0; simulatedPlaybackTime = 0
+        stopLyricScroll()
+        currentLyricIndex = 0
+        simulatedPlaybackTime = 0
         lyricStartDate = Date()
         lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self, let start = self.lyricStartDate else { return }
             DispatchQueue.main.async {
-                // 用 Date 计算精确时间，避免 timer 累加漂移
                 let elapsed = Date().timeIntervalSince(start)
                 self.simulatedPlaybackTime = elapsed
-                let lines = self.selectedSong.lines
+                let lines = self.activeSong.lines   // 自定义歌词优先
                 let newIndex = lines.lastIndex(where: { $0.startTime <= elapsed }) ?? 0
                 if newIndex != self.currentLyricIndex {
                     withAnimation(.easeInOut(duration: 0.3)) { self.currentLyricIndex = newIndex }
                 }
                 if let last = lines.last, elapsed > last.endTime + 1.0 {
                     self.lyricStartDate = Date()
-                    self.simulatedPlaybackTime = 0; self.currentLyricIndex = 0
+                    self.simulatedPlaybackTime = 0
+                    self.currentLyricIndex = 0
                 }
             }
         }
     }
 
-    func stopLyricScroll() { lyricTimer?.invalidate(); lyricTimer = nil; simulatedPlaybackTime = 0; lyricStartDate = nil }
+    func stopLyricScroll() {
+        lyricTimer?.invalidate()
+        lyricTimer = nil
+        simulatedPlaybackTime = 0
+        lyricStartDate = nil
+    }
 
     // MARK: - 延时倒计时
 
@@ -270,6 +355,7 @@ class VideoModeViewModel: ObservableObject {
         lyricTimer?.invalidate()
         templateTimer?.invalidate()
         audioPlayer?.stop()
+        lipSyncAudioPlayer?.stop()
         cancellables.removeAll()
     }
 }
