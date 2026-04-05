@@ -196,7 +196,7 @@ class VideoModeViewModel: ObservableObject {
                 } else if template.emojiMoves.isEmpty {
                     self.importedTemplate = template
                     self.analysisErrorMessage = "未检测到明显手势，建议选人物清晰的舞蹈视频"
-                    self.recordDanceUse()   // 分析成功但无手势，仍记录一次
+                    // 无手势 = 流程未完成，不消耗次数
                 } else {
                     self.recordDanceUse()   // 分析成功，记录一次使用
                     self.importedTemplate = template
@@ -216,11 +216,14 @@ class VideoModeViewModel: ObservableObject {
         templateMoveIndex = 0
         isTemplatePlaybackActive = true
 
-        if let audioURL = template.audioURL,
-           let player = try? AVAudioPlayer(contentsOf: audioURL) {
-            audioPlayer = player
-            audioPlayer?.prepareToPlay()
-            audioPlayer?.play()
+        // AVAudioPlayer 必须在主线程创建和播放
+        if let audioURL = template.audioURL {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.templateGeneration == gen else { return }
+                self.audioPlayer = try? AVAudioPlayer(contentsOf: audioURL)
+                self.audioPlayer?.prepareToPlay()
+                self.audioPlayer?.play()
+            }
         }
 
         scheduleTemplateMove(at: 0, moves: template.emojiMoves, generation: gen)

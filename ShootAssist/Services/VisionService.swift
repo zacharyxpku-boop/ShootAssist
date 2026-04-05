@@ -45,10 +45,9 @@ class VisionService: NSObject, ObservableObject {
         frameCount += 1
         guard frameCount % analyzeEveryNFrames == 0 else { return }
 
-        // 根据前后摄像头选择正确的方向
-        let orientation: CGImagePropertyOrientation = isFrontCamera ? .leftMirrored : .up
-
-        let handler = VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: orientation)
+        // AVCaptureVideoDataOutput 始终提供原始未镜像帧（预览层的镜像不影响 sampleBuffer）
+        // 因此 Vision 始终以 .up 处理原始帧，再在提取关节后手动翻转前摄 x 坐标
+        let handler = VNImageRequestHandler(cmSampleBuffer: sampleBuffer, orientation: .up)
 
         // 每次创建新的 Request 实例——避免跨线程复用导致数据竞争
         let personReq = VNDetectHumanRectanglesRequest()
@@ -70,7 +69,11 @@ class VisionService: NSObject, ObservableObject {
         let hasPerson = personResult != nil
         let faceBox = faceResult?.boundingBox ?? .zero
         let hasFace = faceResult != nil
-        let joints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
+        // 前摄：水平翻转 x 坐标，匹配预览层镜像（预览层对前摄自动做了水平镜像）
+        var joints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
+        if isFrontCamera {
+            joints = joints.mapValues { CGPoint(x: 1.0 - $0.x, y: $0.y) }
+        }
         let advice = hasPerson ? self.analyzeComposition(personBox: personBox) : CompositionAdvice(
             isGood: false, tips: ["画面中没有检测到人物"],
             personBox: .zero, suggestedAction: "请对准人物 📷",

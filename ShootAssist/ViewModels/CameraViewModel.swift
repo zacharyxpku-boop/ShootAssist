@@ -163,11 +163,13 @@ class CameraViewModel: NSObject, ObservableObject {
             }
             self.session.addInput(newInput)
             self.currentDevice = newDevice
+            // ✅ 在 sessionQueue 中同步更新 visionService，确保新摄像头首帧前 isFrontCamera 已就绪
+            // （visionQueue 是独立队列，visionService.isFrontCamera 是普通属性，在 sessionQueue 写安全）
+            self.visionService.isFrontCamera = !currentlyFront
             self.session.commitConfiguration()
 
             DispatchQueue.main.async {
                 self.isFrontCamera = !currentlyFront
-                self.visionService.isFrontCamera = !currentlyFront
             }
         }
     }
