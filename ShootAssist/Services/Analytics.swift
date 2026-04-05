@@ -5,21 +5,24 @@ import Foundation
 struct Analytics {
 
     private static let dateFormatter: ISO8601DateFormatter = ISO8601DateFormatter()
+    private static let writeQueue = DispatchQueue(label: "com.shootassist.analytics")
 
     // MARK: - 写入事件
 
     /// 记录一条事件，可附带任意属性
     static func track(_ event: String, properties: [String: Any] = [:]) {
-        var events = UserDefaults.standard.array(forKey: "analytics_events") as? [[String: Any]] ?? []
-        var eventData: [String: Any] = [
-            "event": event,
-            "timestamp": dateFormatter.string(from: Date())
-        ]
-        properties.forEach { eventData[$0.key] = $0.value }
-        events.append(eventData)
-        // 保留最近 500 条，避免 UserDefaults 膨胀
-        if events.count > 500 { events = Array(events.suffix(500)) }
-        UserDefaults.standard.set(events, forKey: "analytics_events")
+        writeQueue.async {
+            var events = UserDefaults.standard.array(forKey: "analytics_events") as? [[String: Any]] ?? []
+            var eventData: [String: Any] = [
+                "event": event,
+                "timestamp": dateFormatter.string(from: Date())
+            ]
+            properties.forEach { eventData[$0.key] = $0.value }
+            events.append(eventData)
+            // 保留最近 500 条，避免 UserDefaults 膨胀
+            if events.count > 500 { events = Array(events.suffix(500)) }
+            UserDefaults.standard.set(events, forKey: "analytics_events")
+        }
     }
 
     // MARK: - 读取统计
