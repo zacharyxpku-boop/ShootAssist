@@ -124,6 +124,8 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
+          # 用 Codemagic 内置的 BUILD_NUMBER 自动递增 build number，无需手动改
+          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" project.yml
           xcodegen generate
 
       - name: Set up code signing
