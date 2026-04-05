@@ -145,10 +145,14 @@ class VideoModeViewModel: ObservableObject {
             )
             try AVAudioSession.sharedInstance().setActive(true,
                 options: .notifyOthersOnDeactivation)
-        } catch {}
-        lipSyncAudioPlayer = try? AVAudioPlayer(contentsOf: url)
-        lipSyncAudioPlayer?.prepareToPlay()
-        lipSyncAudioPlayer?.play()
+        } catch { return }
+        // AVAudioPlayer 的 prepareToPlay/play 必须在主线程调用
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.lipSyncAudioPlayer = try? AVAudioPlayer(contentsOf: url)
+            self.lipSyncAudioPlayer?.prepareToPlay()
+            self.lipSyncAudioPlayer?.play()
+        }
     }
 
     func stopLipSyncAudio() {
@@ -168,7 +172,8 @@ class VideoModeViewModel: ObservableObject {
             let timeoutTask = Task {
                 try await Task.sleep(nanoseconds: 90_000_000_000)
                 await MainActor.run {
-                    guard self.isAnalyzing else { return }
+                    // 双重保护：Task.cancel() 不中断已进入 await 的 block，需手动检查
+                    guard !Task.isCancelled, self.isAnalyzing else { return }
                     self.isAnalyzing = false
                     self.analysisErrorMessage = "分析超时，请选择较短的视频（建议 60s 内）"
                 }
@@ -241,11 +246,14 @@ class VideoModeViewModel: ObservableObject {
 
         templateTimer = Timer.scheduledTimer(withTimeInterval: max(delay, 0.3), repeats: false) { [weak self] _ in
             guard let self, self.templateGeneration == generation else { return }
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [self] in
+                guard self.templateGeneration == generation else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                     self.templateMoveIndex = index
                 }
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                if UIApplication.shared.applicationState == .active {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
                 self.scheduleTemplateMove(at: index + 1, moves: moves, generation: generation)
             }
         }
@@ -299,20 +307,20 @@ class VideoModeViewModel: ObservableObject {
         simulatedPlaybackTime = 0
         lyricStartDate = Date()
         lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self, let start = self.lyricStartDate else { return }
-            DispatchQueue.main.async {
-                let elapsed = Date().timeIntervalSince(start)
-                self.simulatedPlaybackTime = elapsed
-                let lines = self.activeSong.lines   // 自定义歌词优先
-                let newIndex = lines.lastIndex(where: { $0.startTime <= elapsed }) ?? 0
-                if newIndex != self.currentLyricIndex {
-                    withAnimation(.easeInOut(duration: 0.3)) { self.currentLyricIndex = newIndex }
-                }
-                if let last = lines.last, elapsed > last.endTime + 1.0 {
-                    self.lyricStartDate = Date()
-                    self.simulatedPlaybackTime = 0
-                    self.currentLyricIndex = 0
-                }
+            guard let self else { return }
+            // 在 dispatch 前捕获 startDate，防止 dispatch 后外部已重置 lyricStartDate
+            guard let startDate = self.lyricStartDate else { return }
+            let elapsed = Date().timeIntervalSince(startDate)
+            self.simulatedPlaybackTime = elapsed
+            let lines = self.activeSong.lines   // 自定义歌词优先
+            let newIndex = lines.lastIndex(where: { $0.startTime <= elapsed }) ?? 0
+            if newIndex != self.currentLyricIndex {
+                withAnimation(.easeInOut(duration: 0.3)) { self.currentLyricIndex = newIndex }
+            }
+            if let last = lines.last, elapsed > last.endTime + 1.0 {
+                self.lyricStartDate = Date()
+                self.simulatedPlaybackTime = 0
+                self.currentLyricIndex = 0
             }
         }
     }
