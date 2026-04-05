@@ -37,6 +37,11 @@ class VisionService: NSObject, ObservableObject {
     private let lowLightThreshold = 30  // 6 秒（30帧 × 5帧间隔 × 0.2s/帧 ≈ 6s）无人 → 提示
     var analyzeEveryNFrames: Int = 5
 
+    /// EMA 平滑系数（0~1，越大越跟随新值，越小越平滑稳定）
+    /// 0.35：在快速动作响应性和稳定性之间取得平衡
+    var smoothingAlpha: CGFloat = 0.35
+    private var smoothedJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+
     /// 是否为前置摄像头（影响坐标方向）
     var isFrontCamera: Bool = false
 
@@ -78,7 +83,21 @@ class VisionService: NSObject, ObservableObject {
         let faceBox = faceResult?.boundingBox ?? .zero
         let hasFace = faceResult != nil
         // .upMirrored 时 Vision 已自动校正坐标，无需手动翻转
-        let joints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
+        let rawJoints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
+        // EMA 平滑：新关键点与历史平均混合，消除逐帧抖动
+        var joints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+        for (key, newPt) in rawJoints {
+            if let prev = self.smoothedJoints[key] {
+                joints[key] = CGPoint(
+                    x: self.smoothingAlpha * newPt.x + (1 - self.smoothingAlpha) * prev.x,
+                    y: self.smoothingAlpha * newPt.y + (1 - self.smoothingAlpha) * prev.y
+                )
+            } else {
+                joints[key] = newPt  // 首次出现，直接使用原始值
+            }
+        }
+        // 关键点消失时立即清除（不延续幽灵关键点）
+        self.smoothedJoints = joints
 
         let advice = hasPerson ? self.analyzeComposition(personBox: personBox) : CompositionAdvice(
             isGood: false, tips: ["画面中没有检测到人物"],
