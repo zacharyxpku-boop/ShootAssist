@@ -31,6 +31,14 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
+          # 从 App Store Connect 拉取最新 build number，自动 +1，彻底避免重复上传报错
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
+                    --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+                    --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+                    2>/dev/null || echo "3")
+          NEW_BUILD=$((LATEST + 1))
+          echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
+          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
           xcodegen generate
 
       - name: Set up code signing
@@ -124,8 +132,14 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          # 用 Codemagic 内置的 BUILD_NUMBER 自动递增 build number，无需手动改
-          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$BUILD_NUMBER\"/" project.yml
+          # 从 App Store Connect 拉取最新 build number，自动 +1，彻底避免重复上传报错
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
+                    --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+                    --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
+                    2>/dev/null || echo "3")
+          NEW_BUILD=$((LATEST + 1))
+          echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
+          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
           xcodegen generate
 
       - name: Set up code signing

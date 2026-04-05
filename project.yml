@@ -9,7 +9,7 @@ settings:
   SWIFT_VERSION: "5.0"
   GENERATE_INFOPLIST_FILE: NO
   MARKETING_VERSION: "1.0.0"
-  CURRENT_PROJECT_VERSION: "3"
+  CURRENT_PROJECT_VERSION: "4"
 targets:
   ShootAssist:
     type: application
