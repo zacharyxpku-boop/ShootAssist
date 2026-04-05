@@ -172,9 +172,16 @@ class CameraViewModel: NSObject, ObservableObject {
             self.visionService.isFrontCamera = !currentlyFront
             self.session.commitConfiguration()
 
-            // 切换后重新固定 videoOrientation（commitConfiguration 后 connection 仍存在）
+            // 切换后重新固定 videoOrientation 及镜像（commitConfiguration 后 connection 仍存在）
+            let isFront = !currentlyFront
             if let conn = self.videoDataOutput.connection(with: .video) {
                 if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
+            }
+            // movieOutput connection 也需同步更新，否则前摄录制视频方向/镜像错乱
+            if let conn = self.movieOutput.connection(with: .video) {
+                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
 
             DispatchQueue.main.async {

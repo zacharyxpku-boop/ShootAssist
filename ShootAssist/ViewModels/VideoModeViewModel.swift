@@ -216,6 +216,20 @@ class VideoModeViewModel: ObservableObject {
         templateMoveIndex = 0
         isTemplatePlaybackActive = true
 
+        // 录制时需要 playAndRecord + mixWithOthers，才能边录视频边播放模板音乐
+        // 否则 AVCaptureMovieFileOutput 会独占音频会话导致 AVAudioPlayer 无声
+        if template.audioURL != nil {
+            do {
+                try AVAudioSession.sharedInstance().setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
+                )
+                try AVAudioSession.sharedInstance().setActive(
+                    true, options: .notifyOthersOnDeactivation)
+            } catch {}
+        }
+
         // AVAudioPlayer 必须在主线程创建和播放
         if let audioURL = template.audioURL {
             DispatchQueue.main.async { [weak self] in
