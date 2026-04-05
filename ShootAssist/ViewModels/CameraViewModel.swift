@@ -135,6 +135,12 @@ class CameraViewModel: NSObject, ObservableObject {
             if let conn = self.movieOutput.connection(with: .video) {
                 if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
             }
+            // ✅ photoOutput 补设 videoOrientation，避免拍出的照片方向元数据错误
+            if let conn = self.photoOutput.connection(with: .video) {
+                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                // 初始后置摄像头不镜像；切换前置后由 switchCamera 更新
+                if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+            }
 
             self.session.commitConfiguration()
             self.session.startRunning()
@@ -186,6 +192,11 @@ class CameraViewModel: NSObject, ObservableObject {
             if let conn = self.movieOutput.connection(with: .video) {
                 if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
+            }
+            // ✅ photoOutput 同步镜像状态：前置拍照保存非镜像（与苹果原相机一致）
+            if let conn = self.photoOutput.connection(with: .video) {
+                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
 
             DispatchQueue.main.async {

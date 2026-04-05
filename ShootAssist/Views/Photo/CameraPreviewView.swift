@@ -27,4 +27,11 @@ class CameraPreviewUIView: UIView {
     var previewLayer: AVCaptureVideoPreviewLayer {
         layer as! AVCaptureVideoPreviewLayer
     }
+
+    // ✅ SwiftUI 改变容器大小时（旋转/布局更新）同步 layer bounds
+    // 防止 layer 残留旧尺寸导致画面被拉伸或留白
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        previewLayer.frame = bounds
+    }
 }
