@@ -752,7 +752,10 @@ private struct DemoPickerSheet: View {
                     ForEach(demoTemplates) { entry in
                         Button(action: {
                             if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
-                                isPresented = false; showPaywall = true
+                                isPresented = false
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                                    showPaywall = true
+                                }
                             } else {
                                 videoVM.loadDemoTemplate(entry); isPresented = false
                             }
