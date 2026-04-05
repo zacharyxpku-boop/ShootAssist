@@ -29,7 +29,8 @@ class LyricRecognitionService {
 
         return await withCheckedContinuation { cont in
             var resumed = false
-            recognizer.recognitionTask(with: request) { result, error in
+
+            let task = recognizer.recognitionTask(with: request) { result, error in
                 guard !resumed else { return }
                 if let result, result.isFinal {
                     resumed = true
@@ -38,6 +39,14 @@ class LyricRecognitionService {
                     resumed = true
                     cont.resume(returning: [])
                 }
+            }
+
+            // 90s 超时兜底：Speech API 不保证回调，弱网 / 服务无响应会永久挂起
+            DispatchQueue.main.asyncAfter(deadline: .now() + 90) {
+                guard !resumed else { return }
+                task.cancel()
+                resumed = true
+                cont.resume(returning: [])
             }
         }
     }

@@ -128,7 +128,8 @@ class VideoModeViewModel: ObservableObject {
         customSongLyrics = nil
         lyricRecognitionError = nil
         stopLipSyncAudio()
-        // 不在这里重启 lyricScroll，由调用方（sheet onDisappear）决定
+        stopLyricScroll()   // 必须先停，防止 currentLyricIndex 越界访问新 lines
+        // 由调用方（sheet onDisappear）决定是否重启 startLyricScroll
     }
 
     // MARK: - 对口型音频播放（录制期间同步播放）
@@ -136,10 +137,14 @@ class VideoModeViewModel: ObservableObject {
     func startLipSyncAudio() {
         guard let url = customMusicURL else { return }
         do {
+            // playAndRecord + mixWithOthers：允许麦克风录音同时播放音乐，不互斥
             try AVAudioSession.sharedInstance().setCategory(
                 .playAndRecord,
-                options: [.defaultToSpeaker, .mixWithOthers]
+                mode: .default,
+                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
             )
+            try AVAudioSession.sharedInstance().setActive(true,
+                options: .notifyOthersOnDeactivation)
         } catch {}
         lipSyncAudioPlayer = try? AVAudioPlayer(contentsOf: url)
         lipSyncAudioPlayer?.prepareToPlay()

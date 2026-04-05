@@ -141,6 +141,7 @@ class CameraViewModel: NSObject, ObservableObject {
     // MARK: - 切换摄像头
 
     func switchCamera() {
+        guard !isRecording else { return }  // 录制中禁止切换，防止 session 配置崩溃
         let currentlyFront = isFrontCamera  // 主线程捕获，避免后台线程读脏值
         sessionQueue.async { [weak self] in
             guard let self else { return }
