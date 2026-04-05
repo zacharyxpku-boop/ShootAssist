@@ -289,7 +289,7 @@ struct VideoModeView: View {
                     .font(.system(size: 18)).foregroundColor(.white).frame(width: 44, height: 44)
             }
         case .videoTemplate:
-            // 免费用户每日10次，达上限才引导 Pro
+            // 免费用户每日10次，达上限才引导 Pro；分析中禁止重复导入
             Button(action: {
                 if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
                     showPaywall = true
@@ -299,7 +299,7 @@ struct VideoModeView: View {
             }) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: "video.badge.plus")
-                        .font(.system(size: 18)).foregroundColor(.white)
+                        .font(.system(size: 18)).foregroundColor(videoVM.isAnalyzing ? .white.opacity(0.3) : .white)
                     if videoVM.isDanceLimitReached(isPro: subManager.isPro) {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 9, weight: .bold))
@@ -309,6 +309,7 @@ struct VideoModeView: View {
                 }
                 .frame(width: 44, height: 44)
             }
+            .disabled(videoVM.isAnalyzing)
         }
     }
 

@@ -131,6 +131,10 @@ class CameraViewModel: NSObject, ObservableObject {
             if let conn = self.videoDataOutput.connection(with: .video) {
                 if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
             }
+            // movieOutput connection 同步设置竖屏方向，防止初始录制方向错乱
+            if let conn = self.movieOutput.connection(with: .video) {
+                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+            }
 
             self.session.commitConfiguration()
             self.session.startRunning()

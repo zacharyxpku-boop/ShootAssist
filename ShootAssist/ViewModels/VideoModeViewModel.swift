@@ -163,6 +163,8 @@ class VideoModeViewModel: ObservableObject {
     // MARK: - 导入视频并分析（含 90s 超时保护；成功后记录一次使用）
 
     func importAndAnalyzeVideo(asset: AVAsset) {
+        analysisGeneration += 1
+        let gen = analysisGeneration   // 捕获本次代；旧任务完成时 gen 不匹配则丢弃
         isAnalyzing = true
         analysisProgress = 0
         importedTemplate = nil
@@ -172,8 +174,7 @@ class VideoModeViewModel: ObservableObject {
             let timeoutTask = Task {
                 try await Task.sleep(nanoseconds: 90_000_000_000)
                 await MainActor.run {
-                    // 双重保护：Task.cancel() 不中断已进入 await 的 block，需手动检查
-                    guard !Task.isCancelled, self.isAnalyzing else { return }
+                    guard !Task.isCancelled, self.analysisGeneration == gen else { return }
                     self.isAnalyzing = false
                     self.analysisErrorMessage = "分析超时，请选择较短的视频（建议 60s 内）"
                 }
@@ -183,22 +184,25 @@ class VideoModeViewModel: ObservableObject {
                 asset: asset,
                 sampleInterval: 0.2
             ) { [weak self] progress in
-                DispatchQueue.main.async { self?.analysisProgress = progress }
+                DispatchQueue.main.async {
+                    guard self?.analysisGeneration == gen else { return }
+                    self?.analysisProgress = progress
+                }
             }
 
             timeoutTask.cancel()
 
             await MainActor.run {
-                guard self.isAnalyzing else { return }
+                // gen 不匹配说明已有新的分析任务覆盖，旧结果直接丢弃
+                guard self.analysisGeneration == gen else { return }
                 self.isAnalyzing = false
                 if template.duration <= 0 {
                     self.analysisErrorMessage = "无法读取视频，请换一个视频文件"
                 } else if template.emojiMoves.isEmpty {
                     self.importedTemplate = template
                     self.analysisErrorMessage = "未检测到明显手势，建议选人物清晰的舞蹈视频"
-                    // 无手势 = 流程未完成，不消耗次数
                 } else {
-                    self.recordDanceUse()   // 分析成功，记录一次使用
+                    self.recordDanceUse()
                     self.importedTemplate = template
                 }
             }
@@ -282,6 +286,11 @@ class VideoModeViewModel: ObservableObject {
         audioPlayer?.stop(); audioPlayer = nil
         isTemplatePlaybackActive = false
         templateMoveIndex = 0
+        // 手势舞音频停止后释放 playAndRecord session（lip sync 未播放时才 deactivate）
+        if !(lipSyncAudioPlayer?.isPlaying ?? false) {
+            try? AVAudioSession.sharedInstance().setActive(
+                false, options: .notifyOthersOnDeactivation)
+        }
     }
 
     // MARK: - 加载 Demo 模板（无需导入视频，直接体验）
@@ -316,6 +325,7 @@ class VideoModeViewModel: ObservableObject {
 
     // MARK: - 对口型歌词滚动（使用 activeSong，支持自定义歌曲）
 
+    private var analysisGeneration: Int = 0
     private var lyricStartDate: Date?
 
     func startLyricScroll() {
