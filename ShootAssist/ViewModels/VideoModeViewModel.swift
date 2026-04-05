@@ -158,6 +158,8 @@ class VideoModeViewModel: ObservableObject {
     func stopLipSyncAudio() {
         lipSyncAudioPlayer?.stop()
         lipSyncAudioPlayer = nil
+        // 对口型录制结束后释放 session（与手势舞路径对齐，由 deactivateAudioSessionIfIdle 兜底）
+        deactivateAudioSessionIfIdle()
     }
 
     // MARK: - 导入视频并分析（含 90s 超时保护；成功后记录一次使用）
@@ -286,11 +288,17 @@ class VideoModeViewModel: ObservableObject {
         audioPlayer?.stop(); audioPlayer = nil
         isTemplatePlaybackActive = false
         templateMoveIndex = 0
-        // 手势舞音频停止后释放 playAndRecord session（lip sync 未播放时才 deactivate）
-        if !(lipSyncAudioPlayer?.isPlaying ?? false) {
-            try? AVAudioSession.sharedInstance().setActive(
-                false, options: .notifyOthersOnDeactivation)
-        }
+        // 不在此处 deactivate AVAudioSession：
+        // 模板可能在录制中自然结束（scheduleTemplateMove 触发），此时 deactivate 会中断麦克风。
+        // session 由视图层在录制真正停止后统一调用 deactivateAudioSessionIfIdle() 管理。
+    }
+
+    /// 视图层在录制停止后调用——仅当两个播放器都已停止时才 deactivate session
+    func deactivateAudioSessionIfIdle() {
+        guard !(audioPlayer?.isPlaying ?? false),
+              !(lipSyncAudioPlayer?.isPlaying ?? false) else { return }
+        try? AVAudioSession.sharedInstance().setActive(
+            false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: - 加载 Demo 模板（无需导入视频，直接体验）

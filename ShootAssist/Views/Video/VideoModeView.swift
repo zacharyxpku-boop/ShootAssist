@@ -163,11 +163,14 @@ struct VideoModeView: View {
                         if cameraVM.isRecording {
                             cameraVM.stopRecording()
                             videoVM.stopTemplatePlayback()
+                            videoVM.deactivateAudioSessionIfIdle()  // BUG1 fix：录制真正停止后才释放 session
                             if videoVM.currentSubMode == .lipSync {
-                                videoVM.stopLipSyncAudio()
+                                videoVM.stopLipSyncAudio()  // 内部已调用 deactivateAudioSessionIfIdle
                                 videoVM.stopLyricScroll()
                                 videoVM.startLyricScroll()  // 恢复预览
                             }
+                        } else if videoVM.isCountingDown {
+                            videoVM.cancelCountdown()       // BUG3 fix：倒计时中按钮取消倒计时
                         } else {
                             videoVM.startCountdown {
                                 cameraVM.startRecording()
@@ -213,6 +216,7 @@ struct VideoModeView: View {
             cameraVM.stopSession()
         }
         .onChange(of: videoVM.currentSubMode) { newMode in
+            guard !cameraVM.isRecording else { return }  // BUG2 fix：录制中禁止切换模式，防止破坏 session
             cameraVM.enableVisionAnalysis = (newMode == .videoTemplate)
             handleSubModeChange()
         }
