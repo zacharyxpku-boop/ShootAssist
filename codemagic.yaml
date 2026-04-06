@@ -44,10 +44,11 @@ workflows:
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
                     --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
                     --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-                    2>/dev/null || echo "3")
+                    2>/dev/null || echo "4")
           NEW_BUILD=$((LATEST + 1))
           echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
-          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
+          perl -i -pe "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
+          grep CURRENT_PROJECT_VERSION project.yml
           xcodegen generate
 
       - name: Set up code signing
@@ -154,10 +155,11 @@ workflows:
           LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
                     --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
                     --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-                    2>/dev/null || echo "3")
+                    2>/dev/null || echo "4")
           NEW_BUILD=$((LATEST + 1))
           echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
-          sed -i "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
+          perl -i -pe "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
+          grep CURRENT_PROJECT_VERSION project.yml
           xcodegen generate
 
       - name: Set up code signing
