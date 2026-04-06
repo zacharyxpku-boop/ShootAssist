@@ -24,6 +24,10 @@ class VideoModeViewModel: ObservableObject {
     @Published var lyricRecognitionError: String?
     @Published var showAudioPicker: Bool = false
 
+    // MARK: - 对口型：从视频提取音频
+    @Published var showVideoPickerForLipSync: Bool = false
+    @Published var isExtractingVideoAudio: Bool = false
+
     /// 当前生效的歌曲（自定义优先）
     var activeSong: SongLyrics { customSongLyrics ?? selectedSong }
 
@@ -118,6 +122,23 @@ class VideoModeViewModel: ObservableObject {
                 // 用新歌词重启预览滚动
                 self.stopLyricScroll()
                 self.startLyricScroll()
+            }
+        }
+    }
+
+    /// 从本地视频提取音频后，走和音频上传相同的歌词识别流程
+    func importVideoForLipSync(asset: AVAsset) {
+        isExtractingVideoAudio = true
+        lyricRecognitionError = nil
+        Task {
+            let audioURL = await VideoAnalysisService.shared.extractAudioForLipSync(from: asset)
+            await MainActor.run {
+                self.isExtractingVideoAudio = false
+                if let url = audioURL {
+                    self.importCustomAudio(url: url)
+                } else {
+                    self.lyricRecognitionError = "视频音频提取失败，请换一个视频文件"
+                }
             }
         }
     }

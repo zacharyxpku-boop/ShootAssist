@@ -12,6 +12,7 @@ struct VideoModeView: View {
     @State private var shareVideoURL: URL? = nil
     @State private var isPreparingShare = false
     @State private var showAudioPicker = false
+    @State private var showVideoPickerForLipSync = false
 
     var body: some View {
         ZStack {
@@ -108,6 +109,11 @@ struct VideoModeView: View {
                     // 分析进度遮罩
                     if videoVM.isAnalyzing {
                         AnalyzingOverlay(progress: videoVM.analysisProgress)
+                    }
+
+                    // 视频音频提取中遮罩
+                    if videoVM.isExtractingVideoAudio {
+                        VideoExtractAudioOverlay()
                     }
 
                     // 歌词识别中遮罩
@@ -225,7 +231,8 @@ struct VideoModeView: View {
             SongSelectorSheet(
                 videoVM: videoVM,
                 isPresented: $videoVM.showSongSelector,
-                showAudioPicker: $showAudioPicker
+                showAudioPicker: $showAudioPicker,
+                showVideoPickerForLipSync: $showVideoPickerForLipSync
             )
             .onDisappear {
                 videoVM.stopLyricScroll()
@@ -237,6 +244,13 @@ struct VideoModeView: View {
                 showAudioPicker = false
                 guard let url else { return }
                 videoVM.importCustomAudio(url: url)
+            }
+        }
+        .sheet(isPresented: $showVideoPickerForLipSync) {
+            VideoPicker { asset in
+                showVideoPickerForLipSync = false
+                guard let asset else { return }
+                videoVM.importVideoForLipSync(asset: asset)
             }
         }
         // 录制完成 → 加水印 → 显示分享横幅
@@ -477,6 +491,24 @@ private struct VideoTemplateOverlay: View {
     }
 }
 
+// MARK: - 视频音频提取中遮罩
+
+private struct VideoExtractAudioOverlay: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.65).ignoresSafeArea()
+            VStack(spacing: 14) {
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .honeyOrange))
+                    .scaleEffect(1.4)
+                Text("正在提取视频音频").font(.system(size: 15, weight: .semibold)).foregroundColor(.white)
+                Text("稍等一下，马上识别歌词…")
+                    .font(.system(size: 12)).foregroundColor(.white.opacity(0.6))
+            }
+        }
+    }
+}
+
 // MARK: - 歌词识别中遮罩
 
 private struct LyricRecognizingOverlay: View {
@@ -621,11 +653,12 @@ private struct SongSelectorSheet: View {
     @ObservedObject var videoVM: VideoModeViewModel
     @Binding var isPresented: Bool
     @Binding var showAudioPicker: Bool
+    @Binding var showVideoPickerForLipSync: Bool
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // 上传自定义音乐
+                // 上传自定义音乐（音频文件）
                 Button(action: {
                     isPresented = false
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -657,6 +690,35 @@ private struct SongSelectorSheet: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Color.rosePink.opacity(0.07)))
                 }
                 .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 4)
+
+                // 从本地视频提取音乐
+                Button(action: {
+                    isPresented = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showVideoPickerForLipSync = true
+                    }
+                }) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "video.circle.fill")
+                            .font(.system(size: 28)).foregroundColor(.honeyOrange)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("从视频提取音乐")
+                                .font(.system(size: 15, weight: .semibold)).foregroundColor(.berryBrown)
+                            Text("自动提取视频音频 · 自动识别歌词")
+                                .font(.system(size: 12)).foregroundColor(.midBerryBrown)
+                        }
+                        Spacer()
+                        if videoVM.isExtractingVideoAudio {
+                            ProgressView().scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14)).foregroundColor(.midBerryBrown.opacity(0.5))
+                        }
+                    }
+                    .padding(14)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.honeyOrange.opacity(0.07)))
+                }
+                .padding(.horizontal, 16).padding(.bottom, 4)
 
                 // 识别错误提示
                 if let err = videoVM.lyricRecognitionError {

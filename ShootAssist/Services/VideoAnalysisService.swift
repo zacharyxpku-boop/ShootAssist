@@ -217,20 +217,31 @@ class VideoAnalysisService {
         return nil  // 未识别到特定姿势
     }
 
-    // MARK: - 生成 emoji 时间轴（稳定性去重）
+    // MARK: - 生成 emoji 时间轴（CoreML 模型 + 规则系统兜底，强稳定性）
 
     private func generateEmojiTimeline(
         from frames: [(timestamp: TimeInterval, joints: [VNHumanBodyPoseObservation.JointName: CGPoint])]
     ) -> [EmojiMove] {
+        // 使用 GestureClassifierService：CoreML 优先，规则系统兜底
+        let classifier = GestureClassifierService()
+        // 线上推理时提高置信度阈值，减少误判
+        classifier.confidenceThreshold = 0.70
+        classifier.smoothingWindow = 7  // 0.2s × 7 = 1.4s 平滑窗口
+
         var moves: [EmojiMove] = []
         var lastEmoji = ""
         var candidateEmoji = ""
         var candidateDesc = ""
         var candidateTimestamp: TimeInterval = 0
         var stableCount = 0
+        let requiredStable = 3  // 稳定 3 帧（0.6s）才接受
+        let minGapSeconds  = 1.0  // 两个 emoji 至少间隔 1 秒
 
         for frame in frames {
-            if let classified = classifyPose(joints: frame.joints) {
+            // 使用 CoreML + 规则兜底
+            let classified = classifier.classifyWithFallback(joints: frame.joints)
+
+            if let classified {
                 if classified.emoji == candidateEmoji {
                     stableCount += 1
                 } else {
@@ -240,10 +251,9 @@ class VideoAnalysisService {
                     stableCount = 1
                 }
 
-                // 稳定 2 帧（0.4s）且与上一个不同，才发出新的 emoji
-                if stableCount >= 2 && candidateEmoji != lastEmoji {
-                    let minGap = moves.last.map { candidateTimestamp - $0.timestamp >= 0.5 } ?? true
-                    if minGap {
+                if stableCount >= requiredStable && candidateEmoji != lastEmoji {
+                    let gapOK = moves.last.map { candidateTimestamp - $0.timestamp >= minGapSeconds } ?? true
+                    if gapOK {
                         moves.append(EmojiMove(
                             timestamp: candidateTimestamp,
                             emoji: candidateEmoji,
@@ -253,12 +263,18 @@ class VideoAnalysisService {
                     }
                 }
             } else {
-                // 本帧无法识别，重置候选状态
                 candidateEmoji = ""
                 stableCount = 0
             }
         }
 
         return moves
+    }
+
+    // MARK: - 对口型专用：提取视频音频（public）
+
+    /// 从视频 AVAsset 中提取音频，供对口型功能使用
+    func extractAudioForLipSync(from asset: AVAsset) async -> URL? {
+        return await extractAudio(from: asset)
     }
 }

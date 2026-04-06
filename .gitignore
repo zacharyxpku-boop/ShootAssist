@@ -42,3 +42,6 @@ Icon?
 # 敏感信息
 *.env
 Config/Secrets.swift
+*.txt
+export_*.js
+inspect*.js
