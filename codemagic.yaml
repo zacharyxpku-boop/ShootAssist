@@ -126,6 +126,7 @@ workflows:
         - app_store_credentials
       vars:
         BUNDLE_ID: com.shootassist.mobile
+        APP_STORE_APP_ID: "6761611972"
 
     triggering:
       events:
