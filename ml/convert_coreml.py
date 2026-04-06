@@ -62,27 +62,22 @@ def main():
     # ── 转换为 CoreML ──
     print("🔄 转换为 CoreML...")
 
-    # 将 scaler 参数打包为预处理层（如果有）
-    # 注意: CoreML 不支持 sklearn scaler，需要将归一化参数嵌入模型
+    # 将 scaler 参数导出为 JSON，供 iOS 端做预处理（CoreML 不支持 sklearn scaler）
     if scaler is not None:
         mean = scaler.mean_.astype(np.float32)
         std  = scaler.scale_.astype(np.float32)
+        scaler_json = {
+            "mean": mean.tolist(),
+            "std":  std.tolist(),
+            "feat_dim": FEAT_DIM,
+            "seq_len":  SEQ_LEN,
+        }
+        scaler_json_path = os.path.join(MODEL_DIR, "scaler_params.json")
+        with open(scaler_json_path, "w", encoding="utf-8") as f:
+            json.dump(scaler_json, f, indent=2)
+        print(f"   Scaler params saved: {scaler_json_path}")
 
-        # 构建包含归一化的完整 Keras 模型
-        inp = tf.keras.Input(shape=(SEQ_LEN, FEAT_DIM), name="keypoints")
-        # 归一化（展平→归一化→还原形状）
-        x_flat = tf.keras.layers.Reshape((SEQ_LEN * FEAT_DIM,))(inp)
-        x_norm = tf.keras.layers.Lambda(
-            lambda x: (x - mean.flatten()) / std.flatten(),
-            name="normalize"
-        )(x_flat)
-        x_seq  = tf.keras.layers.Reshape((SEQ_LEN, FEAT_DIM))(x_norm)
-        # 接原模型的计算图（去掉 Input 层）
-        for layer in model.layers[1:]:
-            x_seq = layer(x_seq)
-        full_model = tf.keras.Model(inp, x_seq, name="GestureClassifier_Full")
-    else:
-        full_model = model
+    full_model = model
 
     # 使用 coremltools 转换
     mlmodel = ct.convert(

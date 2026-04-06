@@ -66,24 +66,41 @@ final class GestureClassifierService {
         "neutral":          (nil,   ""),
     ]
 
-    // 标签顺序（与训练时 GESTURE_LABELS 顺序一致）
+    // 标签顺序 — 与 ml/models/label_map.json 严格一致（7个实际训练类别）
     private static let orderedLabels: [String] = [
         "raise_both_hands", "point_up", "heart", "clap",
-        "spread_arms", "fly_kiss", "cover_face",
-        "hands_on_hips", "cross_arms", "chin_rest", "neutral",
+        "spread_arms", "cover_face", "chin_rest",
     ]
+
+    // 标准化参数 — 从 ml/models/scaler_params.json 同步（由 train.py 生成）
+    // iOS 端在推理前必须做与训练相同的 StandardScaler 归一化
+    private var scalerMean: [Float] = []
+    private var scalerStd:  [Float] = []
 
     // MARK: - 初始化
 
     init() {
+        loadScalerParams()
         loadModel()
     }
 
+    private func loadScalerParams() {
+        guard let url = Bundle.main.url(forResource: "scaler_params", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let mean = json["mean"] as? [Double],
+              let std  = json["std"]  as? [Double] else {
+            return
+        }
+        scalerMean = mean.map { Float($0) }
+        scalerStd  = std.map  { Float($0) }
+    }
+
     private func loadModel() {
-        // 模型文件需要拖入 Xcode 目标（GestureClassifier.mlmodel）
-        guard let modelURL = Bundle.main.url(forResource: "GestureClassifier", withExtension: "mlmodelc")
+        // 模型文件需要拖入 Xcode 目标（GestureClassifier.mlpackage）
+        guard let modelURL = Bundle.main.url(forResource: "GestureClassifier", withExtension: "mlpackage")
+                          ?? Bundle.main.url(forResource: "GestureClassifier", withExtension: "mlmodelc")
                           ?? Bundle.main.url(forResource: "GestureClassifier", withExtension: "mlmodel") else {
-            // 模型文件未找到：降级使用规则系统（VideoAnalysisService.classifyPose）
             return
         }
         model = try? MLModel(contentsOf: modelURL)
@@ -104,6 +121,14 @@ final class GestureClassifierService {
                 features[arrayIdx * 2 + 1] = Float(pt.y)
             }
             // 缺失关节保持为 0
+        }
+
+        // 应用 StandardScaler 归一化（与训练时 scaler.transform 一致）
+        if scalerMean.count == Self.featureDim && scalerStd.count == Self.featureDim {
+            for i in 0 ..< Self.featureDim {
+                let s = scalerStd[i] > 0 ? scalerStd[i] : 1.0
+                features[i] = (features[i] - scalerMean[i]) / s
+            }
         }
 
         frameBuffer.append(features)

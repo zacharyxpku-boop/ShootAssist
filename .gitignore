@@ -45,3 +45,19 @@ Config/Secrets.swift
 *.txt
 export_*.js
 inspect*.js
+
+# ML 训练数据（视频太大，不入库）
+ml/data/raw_unlabeled/
+ml/data/raw_videos/
+ml/data/*.png
+ml/data/*.json
+ml/data/keypoints/
+ml/data/.auto_label_progress.json
+
+# ML 中间产物
+ml/models/gesture_export/
+ml/models/gesture_saved_model/
+ml/models/gesture_saved/
+
+# product docs
+product_doc/

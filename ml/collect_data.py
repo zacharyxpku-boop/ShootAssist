@@ -13,8 +13,11 @@ import os
 import cv2
 import numpy as np
 import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
+from pathlib import Path
 
-# ── 配置 ─────────────────────────────────────────────────
+# ── 配置 ─────────────────────────────────────────────
 GESTURE_LABELS = [
     "raise_both_hands",  # 🙌 双手举高
     "point_up",          # ☝️ 指天
@@ -29,52 +32,62 @@ GESTURE_LABELS = [
     "neutral",           # 普通站立
 ]
 
-SEQUENCE_LENGTH = 15    # 每个样本帧数（0.2s/帧 × 15 = 3 秒窗口）
-KEYPOINT_DIM   = 16     # 每帧特征数：8 关节点 × (x, y)
-FRAME_SKIP     = 3      # 每隔 N 帧采样一次（控制采样密度）
-MIN_CONFIDENCE = 0.4    # 关键点最低置信度阈值
-RAW_DIR  = "data/raw_videos"
-OUT_DIR  = "data/keypoints"
+SEQUENCE_LENGTH = 15    # 每个样本帧数
+FEAT_DIM        = 18    # 9 关节点 × (x, y)
+FRAME_SKIP      = 3     # 每隔 N 帧采样一次
+MIN_CONFIDENCE  = 0.4   # 关键点最低置信度阈值
 
-# ── MediaPipe 关节索引（使用上半身：肩、肘、腕、鼻、臀） ──
-# MediaPipe Pose 33 个关节点索引:
+BASE_DIR = Path(__file__).parent
+RAW_DIR  = BASE_DIR / "data" / "raw_videos"
+OUT_DIR  = BASE_DIR / "data" / "keypoints"
+MODEL_PATH = str(BASE_DIR / "pose_landmarker_lite.task")
+
+# ── MediaPipe 关节索引（9 关节）────────────────────────
 # 0=nose, 11=left_shoulder, 12=right_shoulder
 # 13=left_elbow, 14=right_elbow
 # 15=left_wrist, 16=right_wrist
 # 23=left_hip, 24=right_hip
 USED_INDICES = [0, 11, 12, 13, 14, 15, 16, 23, 24]
-# 9 关节 × 2 = 18 features（鼻子+两侧肩/肘/腕+两侧臀）
-KEYPOINT_DIM_ACTUAL = len(USED_INDICES) * 2  # = 18
 
 
-def extract_keypoints(results) -> np.ndarray | None:
-    """从 MediaPipe 结果中提取归一化关键点，返回 shape (18,) 或 None。"""
-    if not results.pose_landmarks:
+def extract_keypoints(pose_landmarks_list) -> np.ndarray | None:
+    """从 MediaPipe Tasks 结果中提取归一化关键点，返回 shape (18,) 或 None。"""
+    if not pose_landmarks_list:
         return None
-    lm = results.pose_landmarks.landmark
+    lm = pose_landmarks_list
     kp = []
     for i in USED_INDICES:
         pt = lm[i]
-        if pt.visibility < MIN_CONFIDENCE:
-            kp.extend([0.0, 0.0])  # 置信度不足填 0
+        vis = pt.visibility if hasattr(pt, 'visibility') else 1.0
+        if vis < MIN_CONFIDENCE:
+            kp.extend([0.0, 0.0])
         else:
             kp.extend([pt.x, pt.y])
     return np.array(kp, dtype=np.float32)
 
 
-def sliding_window_sequences(frames: list[np.ndarray], seq_len: int, stride: int = 5):
+def sliding_window_sequences(frames: list, seq_len: int, stride: int = 5):
     """滑动窗口切割，扩充样本数量。"""
     sequences = []
     for start in range(0, max(1, len(frames) - seq_len + 1), stride):
         seg = frames[start: start + seq_len]
         if len(seg) == seq_len:
-            sequences.append(np.stack(seg))  # (seq_len, dim)
+            sequences.append(np.stack(seg))
     return sequences
 
 
-def process_video(video_path: str) -> list[np.ndarray]:
+def process_video(video_path: str) -> list:
     """从单个视频提取多个关键点序列样本。"""
-    mp_pose = mp.solutions.pose
+    base_options = mp_python.BaseOptions(model_asset_path=MODEL_PATH)
+    options = mp_vision.PoseLandmarkerOptions(
+        base_options=base_options,
+        running_mode=mp_vision.RunningMode.IMAGE,
+        num_poses=1,
+        min_pose_detection_confidence=0.5,
+        min_pose_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+    )
+
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"  [SKIP] 无法打开视频: {video_path}")
@@ -83,13 +96,7 @@ def process_video(video_path: str) -> list[np.ndarray]:
     all_frames = []
     frame_idx = 0
 
-    with mp_pose.Pose(
-        static_image_mode=False,
-        model_complexity=1,
-        smooth_landmarks=True,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5
-    ) as pose:
+    with mp_vision.PoseLandmarker.create_from_options(options) as landmarker:
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -99,38 +106,47 @@ def process_video(video_path: str) -> list[np.ndarray]:
                 continue
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose.process(rgb)
-            kp = extract_keypoints(results)
-            if kp is not None:
-                all_frames.append(kp)
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            result = landmarker.detect(mp_image)
+
+            if result.pose_landmarks:
+                kp = extract_keypoints(result.pose_landmarks[0])
+                if kp is not None:
+                    all_frames.append(kp)
+
             frame_idx += 1
 
     cap.release()
 
     if len(all_frames) < SEQUENCE_LENGTH:
         print(f"  [WARN] 视频帧数不足 ({len(all_frames)}帧 < {SEQUENCE_LENGTH}): {video_path}")
-        # 不足则填充最后一帧
         while len(all_frames) < SEQUENCE_LENGTH:
-            all_frames.append(all_frames[-1] if all_frames else np.zeros(KEYPOINT_DIM_ACTUAL))
+            all_frames.append(all_frames[-1] if all_frames else np.zeros(FEAT_DIM))
 
     return sliding_window_sequences(all_frames, SEQUENCE_LENGTH, stride=3)
 
 
 def main():
-    os.makedirs(OUT_DIR, exist_ok=True)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
     total_samples = 0
 
-    for label in GESTURE_LABELS:
-        raw_dir = os.path.join(RAW_DIR, label)
-        out_dir = os.path.join(OUT_DIR, label)
+    if not Path(MODEL_PATH).exists():
+        print(f"[ERROR] 找不到 pose 模型: {MODEL_PATH}")
+        print("请先运行 auto_detect_label.py（会自动下载模型）")
+        return
 
-        if not os.path.exists(raw_dir):
+    for label in GESTURE_LABELS:
+        raw_dir = RAW_DIR / label
+        out_dir = OUT_DIR / label
+
+        if not raw_dir.exists():
             print(f"[MISS] 目录不存在，跳过: {raw_dir}")
-            os.makedirs(raw_dir, exist_ok=True)
+            out_dir.mkdir(parents=True, exist_ok=True)
             continue
 
-        os.makedirs(out_dir, exist_ok=True)
-        video_files = [f for f in os.listdir(raw_dir) if f.lower().endswith((".mp4", ".mov", ".avi", ".m4v"))]
+        out_dir.mkdir(parents=True, exist_ok=True)
+        video_files = [f for f in raw_dir.iterdir()
+                       if f.suffix.lower() in (".mp4", ".mov", ".avi", ".m4v")]
 
         if not video_files:
             print(f"[EMPTY] {label}: 没有视频文件")
@@ -138,16 +154,15 @@ def main():
 
         label_sequences = []
         for vf in video_files:
-            vpath = os.path.join(raw_dir, vf)
-            print(f"  处理: {vf}")
-            seqs = process_video(vpath)
+            print(f"  处理: {vf.name}")
+            seqs = process_video(str(vf))
             label_sequences.extend(seqs)
             print(f"    → {len(seqs)} 个序列样本")
 
         if label_sequences:
-            arr = np.stack(label_sequences)  # (N, seq_len, dim)
-            out_path = os.path.join(out_dir, "sequences.npy")
-            np.save(out_path, arr)
+            arr = np.stack(label_sequences)  # (N, seq_len, feat_dim)
+            out_path = out_dir / "sequences.npy"
+            np.save(str(out_path), arr)
             print(f"  ✅ {label}: {arr.shape[0]} 个样本 → {out_path}")
             total_samples += arr.shape[0]
         else:

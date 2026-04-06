@@ -1,181 +1,206 @@
 """
-train.py
-加载关键点序列数据，训练 LSTM 手势分类模型，保存为 Keras .h5。
+train.py — 手势识别 LSTM 训练
+输入: data/keypoints/<label>/sequences.npy  shape=(N, 15, 18)
+输出: models/gesture_lstm.h5 + models/label_map.json + models/scaler.pkl
 
-运行: python train.py
-输出: models/gesture_lstm.h5
-      models/label_map.json   (标签→索引映射)
+使用方法: python ml/train.py
 """
 
-import os
-import json
+import os, json, pickle, random
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-import pickle
+from pathlib import Path
+from collections import Counter
 
-# ── 配置（与 collect_data.py 一致） ──────────────────────
-GESTURE_LABELS = [
-    "raise_both_hands", "point_up", "heart", "clap",
-    "spread_arms", "fly_kiss", "cover_face",
-    "hands_on_hips", "cross_arms", "chin_rest", "neutral",
+np.random.seed(42)
+random.seed(42)
+
+# ── 配置 ──────────────────────────────────────────────
+SEQ_LEN    = 15
+FEAT_DIM   = 18    # 9 关节 × (x, y)
+BATCH_SIZE = 8
+EPOCHS     = 200
+PATIENCE   = 40
+DATA_DIR   = Path(__file__).parent / 'data' / 'keypoints'
+MODEL_DIR  = Path(__file__).parent / 'models'
+MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+LABELS = [
+    "raise_both_hands", "point_up", "heart", "clap", "spread_arms",
+    "fly_kiss", "cover_face", "hands_on_hips", "cross_arms", "chin_rest", "neutral"
 ]
-DATA_DIR   = "data/keypoints"
-MODEL_DIR  = "models"
-SEQ_LEN    = 15     # 帧数
-FEAT_DIM   = 18     # 每帧特征维度（9关节 × 2坐标）
-EPOCHS     = 80
-BATCH_SIZE = 32
-VAL_SPLIT  = 0.2
+
+# ── 数据增强 ──────────────────────────────────────────
+def augment(x: np.ndarray) -> np.ndarray:
+    """x: (15, 18)"""
+    x = x.copy()
+    # 水平翻转（x 坐标取反）
+    if random.random() < 0.5:
+        x[:, 0::2] = -x[:, 0::2]
+    # 高斯噪声
+    if random.random() < 0.5:
+        x += np.random.normal(0, 0.012, x.shape)
+    # 时间拉伸 (0.8x / 1.2x → resize back to SEQ_LEN)
+    if random.random() < 0.5:
+        rate = random.choice([0.8, 1.2])
+        new_len = max(4, int(SEQ_LEN * rate))
+        old_idx = np.linspace(0, SEQ_LEN - 1, SEQ_LEN)
+        new_idx = np.linspace(0, SEQ_LEN - 1, new_len)
+        stretched = np.array([np.interp(new_idx, old_idx, x[:, i]) for i in range(FEAT_DIM)]).T
+        back_idx = np.linspace(0, new_len - 1, SEQ_LEN)
+        src_idx  = np.linspace(0, new_len - 1, new_len)
+        x = np.array([np.interp(back_idx, src_idx, stretched[:, i]) for i in range(FEAT_DIM)]).T
+    # 随机裁剪 → resize 回 SEQ_LEN
+    if random.random() < 0.5 and SEQ_LEN > 4:
+        crop = random.randint(SEQ_LEN * 7 // 10, SEQ_LEN - 1)
+        start = random.randint(0, SEQ_LEN - crop)
+        seg = x[start:start + crop]
+        old_idx = np.linspace(0, crop - 1, crop)
+        new_idx = np.linspace(0, crop - 1, SEQ_LEN)
+        x = np.array([np.interp(new_idx, old_idx, seg[:, i]) for i in range(FEAT_DIM)]).T
+    return x.astype(np.float32)
 
 
-def load_data():
-    X_list, y_list = [], []
-    label_map = {}
-
-    for idx, label in enumerate(GESTURE_LABELS):
-        npy_path = os.path.join(DATA_DIR, label, "sequences.npy")
-        if not os.path.exists(npy_path):
-            print(f"  [SKIP] 缺少数据: {npy_path}")
-            continue
-        arr = np.load(npy_path)  # shape: (N, SEQ_LEN, FEAT_DIM)
-        X_list.append(arr)
-        y_list.extend([idx] * len(arr))
-        label_map[idx] = label
-        print(f"  {label}: {len(arr)} 样本")
-
-    if not X_list:
-        raise ValueError("没有训练数据！请先运行 collect_data.py")
-
-    X = np.concatenate(X_list, axis=0)  # (total, SEQ_LEN, FEAT_DIM)
-    y = np.array(y_list)
-    return X, y, label_map
-
-
-def augment_sequences(X: np.ndarray, y: np.ndarray, factor: int = 2) -> tuple:
-    """简单数据增强：随机水平翻转 + 轻微噪声"""
-    X_aug_list = [X]
-    y_aug_list = [y]
-
+def augment_dataset(X, y, factor=8):
+    Xa, ya = [X], [y]
     for _ in range(factor):
-        # 水平翻转（x 坐标 = 1 - x）
-        X_flip = X.copy()
-        X_flip[:, :, 0::2] = 1.0 - X_flip[:, :, 0::2]  # 所有偶数位 = x 坐标
-        X_aug_list.append(X_flip)
-        y_aug_list.append(y)
-
-        # 随机噪声
-        noise = np.random.normal(0, 0.01, X.shape).astype(np.float32)
-        X_aug_list.append(X + noise)
-        y_aug_list.append(y)
-
-    return np.concatenate(X_aug_list), np.concatenate(y_aug_list)
+        Xa.append(np.stack([augment(x) for x in X]))
+        ya.append(y)
+    return np.concatenate(Xa), np.concatenate(ya)
 
 
-def build_model(num_classes: int, seq_len: int, feat_dim: int) -> keras.Model:
-    """
-    轻量级 LSTM + 1D-CNN 混合模型
-    参数量约 50K，CoreML 推理 < 5ms
-    """
-    inp = keras.Input(shape=(seq_len, feat_dim), name="keypoints")
+# ── 加载数据 ──────────────────────────────────────────
+def load_data():
+    X_all, y_all = [], []
+    present_labels = []
 
-    # 局部时序特征提取
-    x = keras.layers.Conv1D(32, kernel_size=3, activation="relu", padding="same")(inp)
-    x = keras.layers.BatchNormalization()(x)
-    x = keras.layers.Conv1D(64, kernel_size=3, activation="relu", padding="same")(x)
-    x = keras.layers.BatchNormalization()(x)
+    for label in LABELS:
+        npy_path = DATA_DIR / label / 'sequences.npy'
+        if not npy_path.exists():
+            print(f'  [MISS] {label}: 无 sequences.npy，跳过')
+            continue
+        seqs = np.load(str(npy_path))
+        if seqs.ndim != 3 or seqs.shape[1] != SEQ_LEN or seqs.shape[2] != FEAT_DIM:
+            print(f'  [WARN] {label}: shape {seqs.shape} 不符合预期，尝试 reshape')
+            try:
+                seqs = seqs.reshape(-1, SEQ_LEN, FEAT_DIM)
+            except Exception as e:
+                print(f'  [ERROR] 无法处理 {label}: {e}')
+                continue
+        X_all.append(seqs)
+        y_all.extend([len(present_labels)] * len(seqs))
+        print(f'  ✅ {label}: {len(seqs)} 个样本')
+        present_labels.append(label)
 
-    # 全局时序建模
-    x = keras.layers.LSTM(64, return_sequences=True)(x)
-    x = keras.layers.Dropout(0.3)(x)
-    x = keras.layers.LSTM(32)(x)
-    x = keras.layers.Dropout(0.3)(x)
+    if not X_all:
+        raise RuntimeError('没有任何有效数据！请先运行 auto_label.py + collect_data.py')
 
-    # 分类头
-    x = keras.layers.Dense(32, activation="relu")(x)
-    out = keras.layers.Dense(num_classes, activation="softmax", name="gesture_prob")(x)
-
-    model = keras.Model(inp, out, name="GestureClassifier")
-    return model
+    label_map = {i: l for i, l in enumerate(present_labels)}
+    return np.concatenate(X_all), np.array(y_all, dtype=np.int32), label_map
 
 
+# ── 构建模型 ──────────────────────────────────────────
+def build_model(seq_len, feat_dim, num_classes):
+    import tensorflow as tf
+    from tensorflow.keras import layers, models
+
+    inp = layers.Input(shape=(seq_len, feat_dim))
+    x = layers.Conv1D(32, 3, activation='relu', padding='same')(inp)
+    x = layers.BatchNormalization()(x)
+    x = layers.Conv1D(64, 3, activation='relu', padding='same')(x)
+    x = layers.BatchNormalization()(x)
+    x = layers.Dropout(0.3)(x)
+    x = layers.LSTM(64, return_sequences=True, dropout=0.3)(x)
+    x = layers.LSTM(32, dropout=0.3)(x)
+    x = layers.Dense(32, activation='relu')(x)
+    x = layers.Dropout(0.4)(x)
+    out = layers.Dense(num_classes, activation='softmax')(x)
+
+    return models.Model(inp, out)
+
+
+# ── 主训练流程 ────────────────────────────────────────
 def main():
-    os.makedirs(MODEL_DIR, exist_ok=True)
+    import tensorflow as tf
+    from tensorflow.keras import callbacks
+    from tensorflow.keras.optimizers import Adam
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.utils.class_weight import compute_class_weight
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import classification_report
 
-    print("📥 加载数据...")
+    tf.random.set_seed(42)
+
+    print('\n' + '='*55)
+    print('  手势识别 LSTM 训练')
+    print('='*55)
+
     X, y, label_map = load_data()
     num_classes = len(label_map)
-    print(f"   总样本: {len(X)}, 类别数: {num_classes}")
+    print(f'\n  样本总数: {len(X)}, 类别数: {num_classes}')
+    print(f'  类别分布: {dict(Counter(y.tolist()))}')
 
-    print("🔄 数据增强...")
-    X, y = augment_sequences(X, y, factor=2)
-    print(f"   增强后: {len(X)} 样本")
-
-    # 归一化（每个特征独立 z-score）
-    orig_shape = X.shape
-    X_flat = X.reshape(-1, orig_shape[-1])
+    # 标准化
     scaler = StandardScaler()
-    X_flat = scaler.fit_transform(X_flat)
-    X = X_flat.reshape(orig_shape)
-
-    # 保存 scaler 供推理时使用
-    scaler_path = os.path.join(MODEL_DIR, "scaler.pkl")
-    with open(scaler_path, "wb") as f:
+    X_scaled = scaler.fit_transform(X.reshape(-1, FEAT_DIM)).reshape(X.shape)
+    with open(MODEL_DIR / 'scaler.pkl', 'wb') as f:
         pickle.dump(scaler, f)
 
-    # 打乱数据
-    idx = np.random.permutation(len(X))
-    X, y = X[idx], y[idx]
+    # Train/Val split
+    if len(X) >= num_classes * 2:
+        X_tr, X_val, y_tr, y_val = train_test_split(
+            X_scaled, y, test_size=0.2, stratify=y, random_state=42)
+    else:
+        print('  [INFO] 样本少，全量训练，validation = train')
+        X_tr, y_tr = X_scaled, y
+        X_val, y_val = X_scaled, y
 
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=VAL_SPLIT, stratify=y, random_state=42)
+    # 增强
+    print(f'\n  数据增强 ×8 中...')
+    X_tr_aug, y_tr_aug = augment_dataset(X_tr, y_tr, factor=8)
+    print(f'  增强后训练样本: {len(X_tr_aug)}')
 
-    print("🏗️  构建模型...")
-    model = build_model(num_classes, SEQ_LEN, FEAT_DIM)
+    # Class weight
+    cw = compute_class_weight('balanced', classes=np.unique(y_tr_aug), y=y_tr_aug)
+    class_weight = {i: w for i, w in enumerate(cw)}
+
+    y_tr_oh  = tf.keras.utils.to_categorical(y_tr_aug, num_classes)
+    y_val_oh = tf.keras.utils.to_categorical(y_val,    num_classes)
+
+    model = build_model(SEQ_LEN, FEAT_DIM, num_classes)
+    model.compile(optimizer=Adam(1e-3), loss='categorical_crossentropy', metrics=['accuracy'])
     model.summary()
 
-    model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=1e-3),
-        loss="sparse_categorical_crossentropy",
-        metrics=["accuracy"]
-    )
-
-    callbacks = [
-        keras.callbacks.EarlyStopping(patience=15, restore_best_weights=True, monitor="val_accuracy"),
-        keras.callbacks.ReduceLROnPlateau(monitor="val_loss", factor=0.5, patience=7),
-        keras.callbacks.ModelCheckpoint(
-            os.path.join(MODEL_DIR, "best_gesture.h5"),
-            save_best_only=True, monitor="val_accuracy"
-        )
+    ckpt = str(MODEL_DIR / 'gesture_lstm_best.h5')
+    cb = [
+        callbacks.ModelCheckpoint(ckpt, monitor='val_accuracy', save_best_only=True, verbose=0),
+        callbacks.EarlyStopping(monitor='val_accuracy', patience=PATIENCE,
+                                restore_best_weights=True, verbose=1),
+        callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=15,
+                                    min_lr=1e-6, verbose=1),
     ]
 
-    print(f"🚀 开始训练 ({EPOCHS} epochs)...")
     history = model.fit(
-        X_train, y_train,
-        validation_data=(X_val, y_val),
-        epochs=EPOCHS,
-        batch_size=BATCH_SIZE,
-        callbacks=callbacks,
-        verbose=1
+        X_tr_aug, y_tr_oh,
+        validation_data=(X_val, y_val_oh),
+        batch_size=BATCH_SIZE, epochs=EPOCHS,
+        class_weight=class_weight, callbacks=cb, verbose=1,
     )
 
-    val_acc = max(history.history["val_accuracy"])
-    print(f"\n✅ 最佳验证准确率: {val_acc * 100:.1f}%")
+    model.save(str(MODEL_DIR / 'gesture_lstm.h5'))
+    with open(MODEL_DIR / 'label_map.json', 'w', encoding='utf-8') as f:
+        json.dump(label_map, f, ensure_ascii=False, indent=2)
 
-    # 保存最终模型
-    model_path = os.path.join(MODEL_DIR, "gesture_lstm.h5")
-    model.save(model_path)
-    print(f"   模型已保存: {model_path}")
-
-    # 保存标签映射
-    label_map_path = os.path.join(MODEL_DIR, "label_map.json")
-    with open(label_map_path, "w", encoding="utf-8") as f:
-        json.dump({str(k): v for k, v in label_map.items()}, f, ensure_ascii=False, indent=2)
-    print(f"   标签映射: {label_map_path}")
-
-    print(f"\n🎉 训练完成！接下来运行: python convert_coreml.py")
+    # 评估
+    y_pred = np.argmax(model.predict(X_val, verbose=0), axis=1)
+    names = [label_map[i] for i in range(num_classes)]
+    print('\n' + '='*55)
+    print(classification_report(y_val, y_pred, target_names=names, zero_division=0))
+    print(f'  最佳 val_accuracy: {max(history.history.get("val_accuracy", [0])):.4f}')
+    print(f'\n  ✅ models/gesture_lstm.h5')
+    print(f'  ✅ models/label_map.json')
+    print(f'  ✅ models/scaler.pkl')
+    print('  下一步: python ml/convert_coreml.py')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
