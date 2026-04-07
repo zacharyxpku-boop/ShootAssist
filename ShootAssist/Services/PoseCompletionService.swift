@@ -1,9 +1,6 @@
 import SwiftUI
 import Vision
 
-// MARK: - Joint Source Enum (re-exported for external use — same as in VisionService)
-enum JointSource { case detected, interpolated, lastKnown }
-
 // MARK: - CompletedPose
 struct CompletedPose {
     let joints: [VNHumanBodyPoseObservation.JointName: CGPoint]
@@ -34,17 +31,16 @@ class PoseCompletionService {
         // Step 1: Merge with Last Known Joints (preserves for up to maxMissingFrames)
         var merged = rawJoints
         
-        // Update lastKnown and frame counters for newly detected joints
-        for (joint, pt) in rawJoints {
-            // Only update if not already present (avoid overwriting newer data)
-            if lastKnownJoints[joint] == nil || jointLastSeenFrame[joint] == nil {
-                continue
-            }
-            merged[joint] = pt
-        }
+        // Merge raw joints into result (rawJoints always wins)
+        merged = rawJoints
         
         // Fill missing joints with last known if within tolerance
-        for joint in Self.torsosAnchors {
+        let allJoints: [VNHumanBodyPoseObservation.JointName] = [
+            .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
+            .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
+            .leftAnkle, .rightAnkle, .root
+        ]
+        for joint in allJoints {
             if merged[joint] == nil {
                 if let lastPt = lastKnownJoints[joint],
                    let lastFrame = jointLastSeenFrame[joint],
@@ -241,9 +237,14 @@ class PoseCompletionService {
         merged: [VNHumanBodyPoseObservation.JointName: CGPoint],
         interpolated: [VNHumanBodyPoseObservation.JointName: CGPoint]
     ) -> [VNHumanBodyPoseObservation.JointName: JointSource] {
+        let allJointNames: [VNHumanBodyPoseObservation.JointName] = [
+            .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
+            .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
+            .leftAnkle, .rightAnkle, .root
+        ]
         var sources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
         
-        for joint in VisionService.allJointNames {
+        for joint in allJointNames {
             if raw[joint] != nil {
                 sources[joint] = .detected
             } else if merged[joint] != nil && interpolated[joint] == merged[joint] {

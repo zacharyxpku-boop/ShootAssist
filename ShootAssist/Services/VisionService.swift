@@ -21,9 +21,6 @@ struct CompositionAdvice: Equatable {
     }
 }
 
-// MARK: - Joint Source Enum
-enum JointSource { case detected, interpolated, lastKnown }
-
 // MARK: - Vision 服务（线程安全版本）
 class VisionService: NSObject, ObservableObject {
     @Published var isPersonDetected = false
@@ -54,7 +51,7 @@ class VisionService: NSObject, ObservableObject {
     private var lastKnownJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
     private var jointLastSeenFrame: [VNHumanBodyPoseObservation.JointName: Int] = [:]
     private let maxMissingFrames = 10
-    private static let allJointNames: [VNHumanBodyPoseObservation.JointName] = [
+    static let allJointNames: [VNHumanBodyPoseObservation.JointName] = [
         .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
         .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
         .leftAnkle, .rightAnkle, .root
@@ -112,6 +109,12 @@ class VisionService: NSObject, ObservableObject {
             maxMissingFrames: self.maxMissingFrames
         )
         
+        // Update temporal memory from completed pose
+        for (joint, pt) in completed.joints where completed.jointSources[joint] == .detected {
+            self.lastKnownJoints[joint] = pt
+            self.jointLastSeenFrame[joint] = self.frameCount
+        }
+
         // Apply EMA smoothing to completed.joints (not raw or merged)
         var joints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
         for (key, newPt) in completed.joints {
@@ -190,16 +193,16 @@ class VisionService: NSObject, ObservableObject {
         let firstJoints = firstPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
         // If first pass yields ≥4 joints, return it directly
-        if firstJoints.count >= 4 {
-            let completed = completionService.complete(
-                firstJoints,
-                boundingBox: nil,
-                lastKnownJoints: [:],
-                frameCount: 0,
-                jointLastSeenFrame: [:],
-                maxMissingFrames: 10
-            )
-            return completed
+        let firstCompleted = completionService.complete(
+            firstJoints,
+            boundingBox: nil,
+            lastKnownJoints: [:],
+            frameCount: 0,
+            jointLastSeenFrame: [:],
+            maxMissingFrames: 10
+        )
+        if firstCompleted.canUseForMatching {
+            return firstCompleted
         }
 
         // Step 3: Second pass — crop & retry
@@ -208,15 +211,7 @@ class VisionService: NSObject, ObservableObject {
         try? personHandler.perform([personReq])
         guard let personResult = personReq.results?.first else {
             // Fallback to first pass
-            let completed = completionService.complete(
-                firstJoints,
-                boundingBox: nil,
-                lastKnownJoints: [:],
-                frameCount: 0,
-                jointLastSeenFrame: [:],
-                maxMissingFrames: 10
-            )
-            return completed
+            return firstCompleted
         }
 
         let personBox = personResult.boundingBox
@@ -230,15 +225,7 @@ class VisionService: NSObject, ObservableObject {
 
         // Crop CGImage using Core Graphics
         guard let croppedCGImage = cropCGImage(cgImage, to: paddedBox, size: uiImage.size) else {
-            let completed = completionService.complete(
-                firstJoints,
-                boundingBox: nil,
-                lastKnownJoints: [:],
-                frameCount: 0,
-                jointLastSeenFrame: [:],
-                maxMissingFrames: 10
-            )
-            return completed
+            return firstCompleted
         }
 
         let secondHandler = VNImageRequestHandler(cgImage: croppedCGImage, orientation: orientation)
@@ -246,10 +233,13 @@ class VisionService: NSObject, ObservableObject {
         try? secondHandler.perform([secondPoseReq])
         let secondJoints = secondPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
+        // Remap second-pass joints from crop-local normalized coords back to full-image normalized coords
+        let remappedSecondJoints = remapJoints(secondJoints, fromCrop: paddedBox)
+
         // Merge: prefer second-pass joints, fall back to first-pass
         var mergedJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
         for joint in Self.allJointNames {
-            if let pt = secondJoints[joint] {
+            if let pt = remappedSecondJoints[joint] {
                 mergedJoints[joint] = pt
             } else if let pt = firstJoints[joint] {
                 mergedJoints[joint] = pt
@@ -282,6 +272,18 @@ class VisionService: NSObject, ObservableObject {
             return nil
         }
         return source.cropping(to: cropRect)
+    }
+
+    // Helper to remap joints from crop-local normalized coords back to full-image normalized coords
+    private func remapJoints(_ joints: [VNHumanBodyPoseObservation.JointName: CGPoint], fromCrop cropBox: CGRect) -> [VNHumanBodyPoseObservation.JointName: CGPoint] {
+        var result: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+        for (joint, pt) in joints {
+            result[joint] = CGPoint(
+                x: cropBox.minX + pt.x * cropBox.width,
+                y: cropBox.minY + pt.y * cropBox.height
+            )
+        }
+        return result
     }
 
     // MARK: - 分析静态图片 Pose (LEGACY — DEPRECATED but kept for binary compat)

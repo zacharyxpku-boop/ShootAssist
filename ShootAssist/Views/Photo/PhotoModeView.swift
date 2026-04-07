@@ -128,8 +128,12 @@ struct PhotoModeView: View {
                         safetyWarningText: photoVM.safetyWarningText,
                         guideTips: photoVM.dynamicGuideTips,
                         liveJoints: photoVM.liveJoints,
+                        liveJointSources: photoVM.liveJointSources,
                         referenceJoints: photoVM.referenceJoints,
-                        isReferenceAnalyzed: photoVM.isReferenceAnalyzed
+                        referenceJointSources: photoVM.referenceJointSources,
+                        isReferenceAnalyzed: photoVM.isReferenceAnalyzed,
+                        referenceCompleteness: photoVM.referenceCompleteness,
+                        referenceReliabilityNote: photoVM.referenceReliabilityNote
                     )
 
                     // 拍同款设置阶段遮罩

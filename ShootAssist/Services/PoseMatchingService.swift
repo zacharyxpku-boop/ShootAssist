@@ -164,13 +164,14 @@ class PoseMatchingService {
         reference: [VNHumanBodyPoseObservation.JointName: CGPoint],
         current: [VNHumanBodyPoseObservation.JointName: CGPoint]
     ) -> PoseMatchResult {
-        // Use empty dictionaries for sources — all joints treated as detected
-        let emptySources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
+        // Use default sources where every joint in the dict defaults to .detected
+        let defaultRefSources = reference.mapValues { _ in JointSource.detected }
+        let defaultCurSources = current.mapValues { _ in JointSource.detected }
         return comparePoses(
             reference: reference,
-            refSources: emptySources,
+            refSources: defaultRefSources,
             current: current,
-            curSources: emptySources
+            curSources: defaultCurSources
         )
     }
 
