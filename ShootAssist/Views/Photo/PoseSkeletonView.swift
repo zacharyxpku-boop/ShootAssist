@@ -137,12 +137,12 @@ struct PoseSkeletonView: View {
         let sourceB = jointSources[jointB] ?? .detected
 
         let baseOpacity: Double
-        let dashPattern: [CGFloat]?
+        let dashPattern: [CGFloat]
         let capStyle: CGLineCap
 
         if sourceA == .detected && sourceB == .detected {
             baseOpacity = isReference ? 0.55 : 0.85
-            dashPattern = nil
+            dashPattern = []
             capStyle = .round
         } else if sourceA == .interpolated || sourceB == .interpolated {
             baseOpacity = isReference ? 0.3 : 0.4
@@ -151,7 +151,7 @@ struct PoseSkeletonView: View {
         } else {
             // lastKnown or mixed non-detected
             baseOpacity = isReference ? 0.25 : 0.25
-            dashPattern = nil
+            dashPattern = []
             capStyle = .round
         }
 
@@ -205,7 +205,7 @@ struct UpperBodySkeletonView: View {
                     }
                 }()
                 
-                let dashPattern = (sourceA == .interpolated || sourceB == .interpolated) ? [4, 4] : nil
+                let dashPattern: [CGFloat] = (sourceA == .interpolated || sourceB == .interpolated) ? [4, 4] : []
                 context.stroke(path, with: .color(lineColor.opacity(opacity)),
                                style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, dash: dashPattern))
             }
