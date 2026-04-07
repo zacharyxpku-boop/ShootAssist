@@ -43,6 +43,7 @@ class PhotoModeViewModel: ObservableObject {
 
     // MARK: - 实时骨骼关键点（来自 VisionService）
     @Published var liveJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+    @Published var liveJointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
 
     // MARK: - 拍同款：参考图 + Pose 分析
     @Published var referenceImage: UIImage? {
@@ -52,10 +53,13 @@ class PhotoModeViewModel: ObservableObject {
     @Published var showImagePicker = false
     @Published var isShootingPhase: Bool = false   // false=设置阶段, true=拍摄阶段
     @Published var referenceJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+    @Published var referenceJointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
     @Published var poseMatchResult: PoseMatchResult = .empty
     @Published var isReferenceAnalyzed = false
     @Published var isAnalyzingReference = false     // 分析中（用于 UI spinner）
     @Published var referenceAnalysisError: String? = nil  // 分析失败的原因
+    @Published var referenceCompleteness: Float = 0
+    @Published var referenceReliabilityNote: String? = nil
 
     // MARK: - 服务
     private let poseMatchingService = PoseMatchingService()
@@ -87,7 +91,9 @@ class PhotoModeViewModel: ObservableObject {
                 if !self.referenceJoints.isEmpty && !joints.isEmpty {
                     self.poseMatchResult = self.poseMatchingService.comparePoses(
                         reference: self.referenceJoints,
-                        current: joints
+                        refSources: self.referenceJointSources,
+                        current: joints,
+                        curSources: self.liveJointSources
                     )
                 }
             }
@@ -108,12 +114,35 @@ class PhotoModeViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        // Completed pose (includes joint sources and metadata)
+        visionService.$completedPose
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completedPose in
+                guard let self else { return }
+                if let pose = completedPose {
+                    self.liveJointSources = pose.jointSources
+                    // If we have both live joints and reference joints, recompute match
+                    if !self.referenceJoints.isEmpty && !pose.joints.isEmpty {
+                        self.poseMatchResult = self.poseMatchingService.comparePoses(
+                            reference: self.referenceJoints,
+                            refSources: self.referenceJointSources,
+                            current: pose.joints,
+                            curSources: pose.jointSources
+                        )
+                    }
+                }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - 分析参考图的 Pose（导入参考图后调用）
     func analyzeReferenceImage(_ visionService: VisionService) {
-        guard let uiImage = referenceImage, let cgImage = uiImage.cgImage else {
+        guard let uiImage = referenceImage else {
             referenceJoints = [:]
+            referenceJointSources = [:]
+            referenceCompleteness = 0
+            referenceReliabilityNote = nil
             isReferenceAnalyzed = false
             isAnalyzingReference = false
             return
@@ -122,25 +151,55 @@ class PhotoModeViewModel: ObservableObject {
         isAnalyzingReference = true
         referenceAnalysisError = nil
 
-        // 在后台线程分析
+        // In background thread analyze
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self else { return }
-            let joints = visionService.analyzePose(in: cgImage) ?? [:]
+            let completedPose = visionService.analyzePose(in: uiImage)
             DispatchQueue.main.async {
                 self.isAnalyzingReference = false
-                self.referenceJoints = joints
-                self.isReferenceAnalyzed = !joints.isEmpty
-                if joints.isEmpty {
-                    // 修复 bug：分析失败时明确设置 error，不再让 spinner 永转
-                    self.referenceAnalysisError = "未检测到人物姿势，换一张试试"
+                if let pose = completedPose {
+                    self.referenceJoints = pose.joints
+                    self.referenceJointSources = pose.jointSources
+                    self.referenceCompleteness = pose.completenessScore
+                    self.referenceReliabilityNote = pose.reliabilityNote
+                    self.isReferenceAnalyzed = pose.canUseForMatching
+                    if !pose.canUseForMatching {
+                        if !pose.joints.isEmpty {
+                            // Joints exist but not reliable enough for matching
+                            self.referenceAnalysisError = pose.reliabilityNote ?? "参考图姿态不够清晰"
+                        } else {
+                            // No joints at all
+                            self.referenceAnalysisError = "未检测到人物姿势，换一张试试"
+                        }
+                        self.poseMatchResult = PoseMatchResult(
+                            score: 0, matchedJoints: 0, totalJoints: 0,
+                            tips: [
+                                "参考图中未检测到人物姿势",
+                                "试试选一张人物清晰、全身可见的照片",
+                                "避免选修图过重或人体被大面积遮挡的图"
+                            ],
+                            isMatched: false, perJointMatch: [:],
+                            canMatch: false,
+                            coverageNote: nil
+                        )
+                    } else {
+                        // Success case — clear error
+                        self.referenceAnalysisError = nil
+                    }
+                } else {
+                    // Vision failed entirely
+                    self.referenceJoints = [:]
+                    self.referenceJointSources = [:]
+                    self.referenceCompleteness = 0
+                    self.referenceReliabilityNote = nil
+                    self.isReferenceAnalyzed = false
+                    self.referenceAnalysisError = "姿势分析失败，请重试"
                     self.poseMatchResult = PoseMatchResult(
                         score: 0, matchedJoints: 0, totalJoints: 0,
-                        tips: [
-                            "参考图中未检测到人物姿势",
-                            "试试选一张人物清晰、全身可见的照片",
-                            "避免选修图过重或人体被大面积遮挡的图"
-                        ],
-                        isMatched: false, perJointMatch: [:]
+                        tips: ["姿势分析失败，请重试"],
+                        isMatched: false, perJointMatch: [:],
+                        canMatch: false,
+                        coverageNote: nil
                     )
                 }
             }
@@ -151,6 +210,9 @@ class PhotoModeViewModel: ObservableObject {
     func clearReference() {
         referenceImage = nil
         referenceJoints = [:]
+        referenceJointSources = [:]
+        referenceCompleteness = 0
+        referenceReliabilityNote = nil
         isReferenceAnalyzed = false
         isAnalyzingReference = false
         referenceAnalysisError = nil
@@ -168,6 +230,19 @@ class PhotoModeViewModel: ObservableObject {
             tips = ["构图很棒 ✦", "按快门吧"]
         }
         return tips
+    }
+
+    // MARK: - Computed property for reference completeness label
+    var referenceCompletenessLabel: String {
+        if referenceCompleteness >= 0.8 {
+            return "参考图姿态完整"
+        } else if referenceCompleteness >= 0.5 {
+            return "参考图姿态基本可用"
+        } else if referenceCompleteness >= 0.35 {
+            return "参考图姿态较残缺，补全仅供参考"
+        } else {
+            return "参考图无法用于匹配"
+        }
     }
 
     deinit {

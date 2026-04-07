@@ -12,9 +12,45 @@ struct PhotoOverlayView: View {
     let guideTips: [String]
     // 实时骨骼
     let liveJoints: [VNHumanBodyPoseObservation.JointName: CGPoint]
+    let liveJointSources: [VNHumanBodyPoseObservation.JointName: JointSource]
     // 参考图关键点
     let referenceJoints: [VNHumanBodyPoseObservation.JointName: CGPoint]
+    let referenceJointSources: [VNHumanBodyPoseObservation.JointName: JointSource]
     let isReferenceAnalyzed: Bool
+    let referenceCompleteness: Float
+    let referenceReliabilityNote: String?
+
+    init(
+        subMode: PhotoSubMode = .influencerClone,
+        isShootingPhase: Bool = false,
+        advice: CompositionAdvice = .empty,
+        isPersonDetected: Bool = false,
+        showSafetyWarning: Bool = false,
+        safetyWarningText: String = "",
+        guideTips: [String] = [],
+        liveJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:],
+        liveJointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:],
+        referenceJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:],
+        referenceJointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:],
+        isReferenceAnalyzed: Bool = false,
+        referenceCompleteness: Float = 1.0,
+        referenceReliabilityNote: String? = nil
+    ) {
+        self.subMode = subMode
+        self.isShootingPhase = isShootingPhase
+        self.advice = advice
+        self.isPersonDetected = isPersonDetected
+        self.showSafetyWarning = showSafetyWarning
+        self.safetyWarningText = safetyWarningText
+        self.guideTips = guideTips
+        self.liveJoints = liveJoints
+        self.liveJointSources = liveJointSources
+        self.referenceJoints = referenceJoints
+        self.referenceJointSources = referenceJointSources
+        self.isReferenceAnalyzed = isReferenceAnalyzed
+        self.referenceCompleteness = referenceCompleteness
+        self.referenceReliabilityNote = referenceReliabilityNote
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -31,7 +67,7 @@ struct PhotoOverlayView: View {
                 if subMode == .influencerClone && isShootingPhase {
                     // 1. 参考轮廓（关键点驱动的半透明粉色剪影）
                     if !referenceJoints.isEmpty {
-                        ReferenceSilhouetteView(joints: referenceJoints, viewSize: geo.size)
+                        ReferenceSilhouetteView(joints: referenceJoints, viewSize: geo.size, jointSources: referenceJointSources)
                     } else {
                         // 没有关键点时显示通用占位虚影
                         GhostSilhouetteView()
@@ -40,12 +76,32 @@ struct PhotoOverlayView: View {
                     }
 
                     // 2. 对齐引导文字
-                    Text("调整位置，使被拍者与轮廓对齐")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 7)
-                        .background(Capsule().fill(Color.black.opacity(0.45)))
-                        .position(x: geo.size.width / 2, y: geo.size.height - 44)
+                    VStack(spacing: 4) {
+                        Text("调整位置，使被拍者与轮廓对齐")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(Capsule().fill(Color.black.opacity(0.45)))
+                        
+                        // Hint for interpolated parts
+                        if !referenceJointSources.isEmpty && referenceCompleteness < 0.8 {
+                            Text("虚线部分为 AI 补全，仅供参考")
+                                .font(.system(size: 9))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12).padding(.vertical, 4)
+                                .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.4)))
+                        }
+                        
+                        // Reliability note warning
+                        if let note = referenceReliabilityNote {
+                            Text(note)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.orange)
+                                .padding(.horizontal, 12).padding(.vertical, 4)
+                                .background(RoundedRectangle(cornerRadius: 4).fill(Color.orange.opacity(0.15)))
+                        }
+                    }
+                    .position(x: geo.size.width / 2, y: geo.size.height - 44)
                 }
 
                 // =========== 智能构图模式 ===========
@@ -58,7 +114,8 @@ struct PhotoOverlayView: View {
                             lineColor: advice.isGood ? .green : Color(hex: "FFCBA4"),
                             lineWidth: 2,
                             jointRadius: 3,
-                            isReference: false
+                            isReference: false,
+                            jointSources: liveJointSources
                         )
                     }
 
@@ -81,7 +138,8 @@ struct PhotoOverlayView: View {
                             lineColor: .white.opacity(0.5),
                             lineWidth: 1.5,
                             jointRadius: 2.5,
-                            isReference: false
+                            isReference: false,
+                            jointSources: liveJointSources
                         )
                     }
 

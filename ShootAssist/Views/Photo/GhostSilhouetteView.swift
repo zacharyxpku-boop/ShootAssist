@@ -38,7 +38,7 @@ struct GhostSilhouetteView: View {
 struct ReferenceSilhouetteView: View {
     let joints: [VNHumanBodyPoseObservation.JointName: CGPoint]
     let viewSize: CGSize
-    let jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
+    var jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
 
     // Vision 坐标（0,0在左下）→ SwiftUI 屏幕坐标
     private func pt(_ name: VNHumanBodyPoseObservation.JointName) -> CGPoint? {

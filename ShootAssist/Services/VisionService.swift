@@ -33,6 +33,7 @@ class VisionService: NSObject, ObservableObject {
     @Published var compositionAdvice: CompositionAdvice = .empty
     @Published var bodyJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
     @Published var jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
+    @Published var completedPose: CompletedPose?
 
     @Published var isLowLightWarning: Bool = false  // 连续失败 → 光线不足提示
 
@@ -58,6 +59,8 @@ class VisionService: NSObject, ObservableObject {
         .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
         .leftAnkle, .rightAnkle, .root
     ]
+
+    private let completionService = PoseCompletionService()
 
     // MARK: - 分析一帧（线程安全：每次创建新 Request，不复用）
     func analyzeFrame(_ sampleBuffer: CMSampleBuffer) {
@@ -99,14 +102,19 @@ class VisionService: NSObject, ObservableObject {
         // .upMirrored 时 Vision 已自动校正坐标，无需手动翻转
         let rawJoints = poseResult.flatMap { self.extractJoints(from: $0) } ?? [:]
         
-        // Pipeline: raw → merged (with last-known) → interpolated → smoothed
-        let mergedJoints = mergeWithLastKnown(rawJoints)
-        let interpolatedJoints = interpolateMissingJoints(mergedJoints, boundingBox: personBox)
-        let sources = buildJointSources(raw: rawJoints, merged: mergedJoints, interpolated: interpolatedJoints)
+        // Use PoseCompletionService to merge, interpolate, and build sources
+        let completed = completionService.complete(
+            rawJoints,
+            boundingBox: hasPerson ? personBox : nil,
+            lastKnownJoints: self.lastKnownJoints,
+            frameCount: self.frameCount,
+            jointLastSeenFrame: self.jointLastSeenFrame,
+            maxMissingFrames: self.maxMissingFrames
+        )
         
-        // Apply EMA smoothing to interpolatedJoints (not raw or merged)
+        // Apply EMA smoothing to completed.joints (not raw or merged)
         var joints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
-        for (key, newPt) in interpolatedJoints {
+        for (key, newPt) in completed.joints {
             if let prev = self.smoothedJoints[key] {
                 joints[key] = CGPoint(
                     x: self.smoothingAlpha * newPt.x + (1 - self.smoothingAlpha) * prev.x,
@@ -140,13 +148,143 @@ class VisionService: NSObject, ObservableObject {
             self.isFaceDetected = hasFace
             self.faceBoundingBox = faceBox
             self.bodyJoints = joints
-            self.jointSources = sources
+            self.jointSources = completed.jointSources
             self.compositionAdvice = advice
             self.isLowLightWarning = shouldWarnLowLight
+            self.completedPose = completed
         }
     }
 
-    // MARK: - 分析静态图片 Pose
+    // MARK: - 分析静态图片 Pose (NEW SIGNATURE)
+    func analyzePose(in uiImage: UIImage) -> CompletedPose {
+        // Step 1: Convert UIImage orientation to CGImagePropertyOrientation
+        let orientation: CGImagePropertyOrientation
+        switch uiImage.imageOrientation {
+        case .up: orientation = .up
+        case .down: orientation = .down
+        case .left: orientation = .left
+        case .right: orientation = .right
+        case .upMirrored: orientation = .upMirrored
+        case .downMirrored: orientation = .downMirrored
+        case .leftMirrored: orientation = .leftMirrored
+        case .rightMirrored: orientation = .rightMirrored
+        @unknown default: orientation = .up
+        }
+
+        // Step 2: First pass — full image
+        guard let cgImage = uiImage.cgImage else {
+            return CompletedPose(
+                joints: [:],
+                jointSources: [:],
+                observedCount: 0,
+                inferredCount: 0,
+                completenessScore: 0,
+                canUseForMatching: false,
+                reliabilityNote: "图像无法转换为CGImage"
+            )
+        }
+
+        let firstHandler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
+        let firstPoseReq = VNDetectHumanBodyPoseRequest()
+        try? firstHandler.perform([firstPoseReq])
+        let firstJoints = firstPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
+
+        // If first pass yields ≥4 joints, return it directly
+        if firstJoints.count >= 4 {
+            let completed = completionService.complete(
+                firstJoints,
+                boundingBox: nil,
+                lastKnownJoints: [:],
+                frameCount: 0,
+                jointLastSeenFrame: [:],
+                maxMissingFrames: 10
+            )
+            return completed
+        }
+
+        // Step 3: Second pass — crop & retry
+        let personHandler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
+        let personReq = VNDetectHumanRectanglesRequest()
+        try? personHandler.perform([personReq])
+        guard let personResult = personReq.results?.first else {
+            // Fallback to first pass
+            let completed = completionService.complete(
+                firstJoints,
+                boundingBox: nil,
+                lastKnownJoints: [:],
+                frameCount: 0,
+                jointLastSeenFrame: [:],
+                maxMissingFrames: 10
+            )
+            return completed
+        }
+
+        let personBox = personResult.boundingBox
+        // Add 20% padding
+        let paddedBox = CGRect(
+            x: max(0, personBox.minX - 0.1),
+            y: max(0, personBox.minY - 0.1),
+            width: min(1.0, personBox.width + 0.2),
+            height: min(1.0, personBox.height + 0.2)
+        )
+
+        // Crop CGImage using Core Graphics
+        guard let croppedCGImage = cropCGImage(cgImage, to: paddedBox, size: uiImage.size) else {
+            let completed = completionService.complete(
+                firstJoints,
+                boundingBox: nil,
+                lastKnownJoints: [:],
+                frameCount: 0,
+                jointLastSeenFrame: [:],
+                maxMissingFrames: 10
+            )
+            return completed
+        }
+
+        let secondHandler = VNImageRequestHandler(cgImage: croppedCGImage, orientation: orientation)
+        let secondPoseReq = VNDetectHumanBodyPoseRequest()
+        try? secondHandler.perform([secondPoseReq])
+        let secondJoints = secondPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
+
+        // Merge: prefer second-pass joints, fall back to first-pass
+        var mergedJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
+        for joint in Self.allJointNames {
+            if let pt = secondJoints[joint] {
+                mergedJoints[joint] = pt
+            } else if let pt = firstJoints[joint] {
+                mergedJoints[joint] = pt
+            }
+        }
+
+        // Complete merged result with no last-known context (static image)
+        let completed = completionService.complete(
+            mergedJoints,
+            boundingBox: personBox,
+            lastKnownJoints: [:],
+            frameCount: 0,
+            jointLastSeenFrame: [:],
+            maxMissingFrames: 10
+        )
+        return completed
+    }
+
+    // Helper to crop CGImage using normalized CGRect and original size
+    private func cropCGImage(_ source: CGImage, to rect: CGRect, size: CGSize) -> CGImage? {
+        let width = CGFloat(source.width)
+        let height = CGFloat(source.height)
+        let x = Int(rect.minX * width)
+        let y = Int((1.0 - rect.maxY) * height) // flip Y for CGImage origin
+        let w = Int(rect.width * width)
+        let h = Int(rect.height * height)
+        let cropRect = CGRect(x: x, y: y, width: w, height: h).integral
+        guard cropRect.width > 0 && cropRect.height > 0 &&
+              cropRect.maxX <= width && cropRect.maxY <= height else {
+            return nil
+        }
+        return source.cropping(to: cropRect)
+    }
+
+    // MARK: - 分析静态图片 Pose (LEGACY — DEPRECATED but kept for binary compat)
     func analyzePose(in image: CGImage) -> [VNHumanBodyPoseObservation.JointName: CGPoint]? {
         let handler = VNImageRequestHandler(cgImage: image, orientation: .up)
         let req = VNDetectHumanBodyPoseRequest()
@@ -177,174 +315,6 @@ class VisionService: NSObject, ObservableObject {
             }
         }
         return joints
-    }
-
-    // MARK: - Merge with Last Known Joints (preserves for up to maxMissingFrames)
-    private func mergeWithLastKnown(_ rawJoints: [VNHumanBodyPoseObservation.JointName: CGPoint]) -> [VNHumanBodyPoseObservation.JointName: CGPoint] {
-        var merged = rawJoints
-        
-        // Update lastKnown and frame counters for newly detected joints
-        for (joint, pt) in rawJoints {
-            lastKnownJoints[joint] = pt
-            jointLastSeenFrame[joint] = frameCount
-        }
-        
-        // Fill missing joints with last known if within tolerance
-        for joint in Self.allJointNames {
-            if merged[joint] == nil {
-                if let lastPt = lastKnownJoints[joint],
-                   let lastFrame = jointLastSeenFrame[joint],
-                   frameCount - lastFrame <= maxMissingFrames {
-                    merged[joint] = lastPt
-                }
-            }
-        }
-        
-        return merged
-    }
-
-    // MARK: - Interpolate Missing Joints using kinematic chain
-    private func interpolateMissingJoints(
-        _ joints: [VNHumanBodyPoseObservation.JointName: CGPoint],
-        boundingBox personBox: CGRect
-    ) -> [VNHumanBodyPoseObservation.JointName: CGPoint] {
-        var result = joints
-        
-        // Helper to get joint or fallback to placeholder
-        func get(_ joint: VNHumanBodyPoseObservation.JointName) -> CGPoint? {
-            return joints[joint]
-        }
-        
-        // Helper to set joint only if missing
-        func setIfMissing(_ joint: VNHumanBodyPoseObservation.JointName, _ pt: CGPoint) {
-            if result[joint] == nil {
-                result[joint] = pt
-            }
-        }
-        
-        // --- Root estimation ---
-        if result[.root] == nil {
-            if let leftShoulder = get(.leftShoulder),
-               let rightShoulder = get(.rightShoulder),
-               let leftHip = get(.leftHip),
-               let rightHip = get(.rightHip) {
-                // Use midpoint of shoulders and hips
-                let shoulderMid = CGPoint(x: (leftShoulder.x + rightShoulder.x) / 2,
-                                          y: (leftShoulder.y + rightShoulder.y) / 2)
-                let hipMid = CGPoint(x: (leftHip.x + rightHip.x) / 2,
-                                     y: (leftHip.y + rightHip.y) / 2)
-                let rootEstimate = CGPoint(x: (shoulderMid.x + hipMid.x) / 2,
-                                           y: (shoulderMid.y + hipMid.y) / 2)
-                setIfMissing(.root, rootEstimate)
-            } else if let leftShoulder = get(.leftShoulder),
-                      let rightShoulder = get(.rightShoulder) {
-                // Shoulder width as proxy
-                let shoulderWidth = abs(rightShoulder.x - leftShoulder.x)
-                let torsoHeight = shoulderWidth * 1.3
-                let shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
-                let rootY = shoulderMidY - torsoHeight
-                let rootX = (leftShoulder.x + rightShoulder.x) / 2
-                setIfMissing(.root, CGPoint(x: rootX, y: rootY))
-            }
-        }
-        
-        // --- Hip estimation ---
-        if result[.leftHip] == nil || result[.rightHip] == nil {
-            if let leftShoulder = get(.leftShoulder),
-               let rightShoulder = get(.rightShoulder),
-               let root = get(.root) {
-                let shoulderWidth = abs(rightShoulder.x - leftShoulder.x)
-                let torsoHeight = shoulderWidth * 1.3
-                let shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2
-                let shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
-                let hipY = shoulderMidY - torsoHeight
-                
-                if result[.leftHip] == nil {
-                    setIfMissing(.leftHip, CGPoint(x: shoulderMidX - shoulderWidth/2, y: hipY))
-                }
-                if result[.rightHip] == nil {
-                    setIfMissing(.rightHip, CGPoint(x: shoulderMidX + shoulderWidth/2, y: hipY))
-                }
-            }
-        }
-        
-        // --- Knee estimation ---
-        if result[.leftKnee] == nil || result[.rightKnee] == nil {
-            if let leftHip = get(.leftHip),
-               let rightHip = get(.rightHip) {
-                let hipWidth = abs(rightHip.x - leftHip.x)
-                let thighLength = hipWidth * 1.15
-                let leftHipY = leftHip.y
-                let rightHipY = rightHip.y
-                
-                if result[.leftKnee] == nil {
-                    setIfMissing(.leftKnee, CGPoint(x: leftHip.x, y: leftHipY - thighLength))
-                }
-                if result[.rightKnee] == nil {
-                    setIfMissing(.rightKnee, CGPoint(x: rightHip.x, y: rightHipY - thighLength))
-                }
-            }
-        }
-        
-        // --- Ankle estimation ---
-        if result[.leftAnkle] == nil || result[.rightAnkle] == nil {
-            if let leftKnee = get(.leftKnee),
-               let rightKnee = get(.rightKnee) {
-                let kneeWidth = abs(rightKnee.x - leftKnee.x)
-                let shinLength = kneeWidth * 0.95
-                let leftKneeY = leftKnee.y
-                let rightKneeY = rightKnee.y
-                
-                if result[.leftAnkle] == nil {
-                    setIfMissing(.leftAnkle, CGPoint(x: leftKnee.x, y: leftKneeY - shinLength))
-                }
-                if result[.rightAnkle] == nil {
-                    setIfMissing(.rightAnkle, CGPoint(x: rightKnee.x, y: rightKneeY - shinLength))
-                }
-            }
-        }
-        
-        // --- Final ankle fallback: use bounding box bottom anchor ---
-        if result[.leftAnkle] == nil || result[.rightAnkle] == nil {
-            let ankleYAnchor = personBox.minY + 0.02
-            if result[.leftAnkle] == nil {
-                if let leftKnee = get(.leftKnee) {
-                    setIfMissing(.leftAnkle, CGPoint(x: leftKnee.x, y: ankleYAnchor))
-                } else if let leftHip = get(.leftHip) {
-                    setIfMissing(.leftAnkle, CGPoint(x: leftHip.x, y: ankleYAnchor))
-                }
-            }
-            if result[.rightAnkle] == nil {
-                if let rightKnee = get(.rightKnee) {
-                    setIfMissing(.rightAnkle, CGPoint(x: rightKnee.x, y: ankleYAnchor))
-                } else if let rightHip = get(.rightHip) {
-                    setIfMissing(.rightAnkle, CGPoint(x: rightHip.x, y: ankleYAnchor))
-                }
-            }
-        }
-        
-        return result
-    }
-
-    // MARK: - Build Joint Sources mapping
-    private func buildJointSources(
-        raw: [VNHumanBodyPoseObservation.JointName: CGPoint],
-        merged: [VNHumanBodyPoseObservation.JointName: CGPoint],
-        interpolated: [VNHumanBodyPoseObservation.JointName: CGPoint]
-    ) -> [VNHumanBodyPoseObservation.JointName: JointSource] {
-        var sources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
-        
-        for joint in Self.allJointNames {
-            if raw[joint] != nil {
-                sources[joint] = .detected
-            } else if merged[joint] != nil && interpolated[joint] == merged[joint] {
-                sources[joint] = .lastKnown
-            } else if interpolated[joint] != nil {
-                sources[joint] = .interpolated
-            }
-        }
-        
-        return sources
     }
 
     // MARK: - 构图分析

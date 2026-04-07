@@ -9,10 +9,13 @@ struct PoseMatchResult {
     let tips: [String]          // 调整建议
     let isMatched: Bool         // score > 阈值即为匹配
     let perJointMatch: [VNHumanBodyPoseObservation.JointName: Bool]  // 每个关键点是否匹配
+    let canMatch: Bool          // false if coverage insufficient for reliable matching
+    let coverageNote: String?  // human-readable coverage warning, nil if fine
 
     static let empty = PoseMatchResult(
         score: 0, matchedJoints: 0, totalJoints: 0,
-        tips: ["等待检测..."], isMatched: false, perJointMatch: [:]
+        tips: ["等待检测..."], isMatched: false, perJointMatch: [:],
+        canMatch: true, coverageNote: nil
     )
 }
 
@@ -26,26 +29,79 @@ class PoseMatchingService {
     /// 0.35 ≈ 允许约 12cm 偏差（典型肩宽 35cm），对非专业用户友好
     var jointTolerance: CGFloat = 0.35
 
-    // MARK: - 核心：比较两组关键点
+    /// 最小所需关键点数（detected）用于可靠匹配
+    var minRequiredJoints: Int = 5
+
+    // MARK: - 核心：比较两组关键点 (overloaded)
     /// reference: 参考图（或预设 Pose）的关键点
     /// current: 实时检测到的关键点
     func comparePoses(
         reference: [VNHumanBodyPoseObservation.JointName: CGPoint],
-        current: [VNHumanBodyPoseObservation.JointName: CGPoint]
+        refSources: [VNHumanBodyPoseObservation.JointName: JointSource],
+        current: [VNHumanBodyPoseObservation.JointName: CGPoint],
+        curSources: [VNHumanBodyPoseObservation.JointName: JointSource]
     ) -> PoseMatchResult {
 
-        // 先做归一化——将两组关键点都转换为"以躯干中心为原点、以肩宽为单位"的相对坐标
+        // Coverage checks
+        let detectedRefCount = refSources.filter { $0.value == .detected }.count
+        if detectedRefCount < minRequiredJoints {
+            return PoseMatchResult(
+                score: 0,
+                matchedJoints: 0,
+                totalJoints: 0,
+                tips: [],
+                isMatched: false,
+                perJointMatch: [:],
+                canMatch: false,
+                coverageNote: "参考图关键点不足，无法进行可靠匹配"
+            )
+        }
+
+        let totalCurCount = current.count
+        if totalCurCount < 3 {
+            return PoseMatchResult(
+                score: 0,
+                matchedJoints: 0,
+                totalJoints: 0,
+                tips: [],
+                isMatched: false,
+                perJointMatch: [:],
+                canMatch: false,
+                coverageNote: "实时检测关键点过少，请调整位置"
+            )
+        }
+
+        // Generate tips for missing critical joints
+        var tips: [String] = []
+
+        if reference.keys.contains(.nose) && !current.keys.contains(.nose) {
+            tips.append("头部未检测到，请正对镜头")
+        }
+
+        let hasLeftHip = current.keys.contains(.leftHip)
+        let hasRightHip = current.keys.contains(.rightHip)
+        if (reference.keys.contains(.leftHip) || reference.keys.contains(.rightHip)) && !hasLeftHip && !hasRightHip {
+            tips.append("下半身未检测到，请退后让全身入镜")
+        }
+
+        // Normalize coordinates
         let refNorm = normalizeToTorso(reference)
         let curNorm = normalizeToTorso(current)
 
         guard !refNorm.isEmpty && !curNorm.isEmpty else {
             return PoseMatchResult(
-                score: 0, matchedJoints: 0, totalJoints: 0,
-                tips: ["未检测到完整姿势"], isMatched: false, perJointMatch: [:]
+                score: 0,
+                matchedJoints: 0,
+                totalJoints: 0,
+                tips: ["未检测到完整姿势"],
+                isMatched: false,
+                perJointMatch: [:],
+                canMatch: true,
+                coverageNote: nil
             )
         }
 
-        // 要比较的关键点
+        // Define joints to compare
         let compareJoints: [VNHumanBodyPoseObservation.JointName] = [
             .nose, .neck,
             .leftShoulder, .rightShoulder,
@@ -55,39 +111,66 @@ class PoseMatchingService {
             .leftKnee, .rightKnee,
         ]
 
-        var matched = 0
-        var total = 0
-        var tips: [String] = []
+        var matchedWeights: Float = 0.0
+        var totalWeights: Float = 0.0
+        var matchedCount = 0
+        var totalCount = 0
         var perJoint: [VNHumanBodyPoseObservation.JointName: Bool] = [:]
 
         for joint in compareJoints {
             guard let refPt = refNorm[joint], let curPt = curNorm[joint] else { continue }
-            total += 1
+            totalCount += 1
+
+            // Assign weight based on source
+            let refWeight: Float = refSources[joint] == .detected ? 1.0 : 0.4
+            let curWeight: Float = curSources[joint] == .detected ? 1.0 : 0.4
+            let jointWeight = min(refWeight, curWeight) // conservative weighting
+
+            totalWeights += jointWeight
+
             let dist = distance(refPt, curPt)
             let isClose = dist < jointTolerance
             perJoint[joint] = isClose
 
             if isClose {
-                matched += 1
+                matchedWeights += jointWeight
+                matchedCount += 1
             } else {
-                // 生成具体的调整建议
+                // Generate tip only for joints present in both
                 let tip = generateTip(joint: joint, refPt: refPt, curPt: curPt)
                 if let tip = tip { tips.append(tip) }
             }
         }
 
-        let score: Float = total > 0 ? Float(matched) / Float(total) : 0
+        let weightedScore: Float = totalWeights > 0 ? matchedWeights / totalWeights : 0
 
-        // 只保留最关键的 3 条建议
+        // Only keep top 3 tips
         let topTips = Array(tips.prefix(3))
 
         return PoseMatchResult(
-            score: score,
-            matchedJoints: matched,
-            totalJoints: total,
-            tips: topTips.isEmpty && score < matchThreshold ? ["继续调整姿势..."] : topTips,
-            isMatched: score >= matchThreshold,
-            perJointMatch: perJoint
+            score: weightedScore,
+            matchedJoints: matchedCount,
+            totalJoints: totalCount,
+            tips: topTips.isEmpty && weightedScore < matchThreshold ? ["继续调整姿势..."] : topTips,
+            isMatched: weightedScore >= matchThreshold,
+            perJointMatch: perJoint,
+            canMatch: true,
+            coverageNote: nil
+        )
+    }
+
+    // MARK: - Legacy signature (backwards compatible)
+    func comparePoses(
+        reference: [VNHumanBodyPoseObservation.JointName: CGPoint],
+        current: [VNHumanBodyPoseObservation.JointName: CGPoint]
+    ) -> PoseMatchResult {
+        // Use empty dictionaries for sources — all joints treated as detected
+        let emptySources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
+        return comparePoses(
+            reference: reference,
+            refSources: emptySources,
+            current: current,
+            curSources: emptySources
         )
     }
 
