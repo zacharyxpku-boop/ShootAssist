@@ -15,6 +15,8 @@ struct PoseSkeletonView: View {
     var jointRadius: CGFloat = 4
     /// 是否为参考图骨骼（半透明虚线）
     var isReference: Bool = false
+    /// Joint source mapping for visual fidelity
+    var jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
 
     // MARK: - 骨骼连接定义（哪些关键点之间要画线）
     private static let bones: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
@@ -60,14 +62,17 @@ struct PoseSkeletonView: View {
                 path.move(to: a)
                 path.addLine(to: b)
 
+                let (lineOpacity, strokeStyle) = boneOpacityAndStyle(jointA: jointA, jointB: jointB)
+                let effectiveOpacity = isReference ? opacity * 0.8 : lineOpacity
+
                 if isReference {
                     // 参考图骨骼用虚线
-                    context.stroke(path, with: .color(lineColor.opacity(opacity)),
+                    context.stroke(path, with: .color(lineColor.opacity(effectiveOpacity)),
                                    style: StrokeStyle(lineWidth: lineWidth, dash: [6, 4]))
                 } else {
-                    // 实时骨骼用实线
-                    context.stroke(path, with: .color(lineColor.opacity(opacity)),
-                                   style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    // 实时骨骼用 styled line
+                    context.stroke(path, with: .color(lineColor.opacity(effectiveOpacity)),
+                                   style: strokeStyle)
                 }
             }
 
@@ -75,14 +80,26 @@ struct PoseSkeletonView: View {
             for (jointName, point) in joints {
                 let p = convertPoint(point)
                 let dotColor = jointDotColor(for: jointName)
-                let rect = CGRect(x: p.x - jointRadius, y: p.y - jointRadius,
-                                  width: jointRadius * 2, height: jointRadius * 2)
-                context.fill(Path(ellipseIn: rect), with: .color(dotColor.opacity(opacity)))
+                let radius = jointRadius * (isReference ? 0.8 : 1.0)
+                let rect = CGRect(x: p.x - radius, y: p.y - radius,
+                                  width: radius * 2, height: radius * 2)
+                
+                let source = jointSources[jointName] ?? .detected
+                let dotOpacity: Double = {
+                    switch source {
+                    case .detected: return isReference ? 0.55 : 0.85
+                    case .interpolated: return isReference ? 0.35 : 0.35
+                    case .lastKnown: return isReference ? 0.25 : 0.25
+                    }
+                }()
+                
+                context.fill(Path(ellipseIn: rect), with: .color(dotColor.opacity(dotOpacity)))
 
                 // 关键点外圈（白色描边增加可见性）
                 if !isReference {
-                    let outerRect = CGRect(x: p.x - jointRadius - 1, y: p.y - jointRadius - 1,
-                                           width: (jointRadius + 1) * 2, height: (jointRadius + 1) * 2)
+                    let outerRadius = radius + 1
+                    let outerRect = CGRect(x: p.x - outerRadius, y: p.y - outerRadius,
+                                           width: outerRadius * 2, height: outerRadius * 2)
                     context.stroke(Path(ellipseIn: outerRect),
                                    with: .color(.white.opacity(0.4)),
                                    lineWidth: 1)
@@ -113,6 +130,42 @@ struct PoseSkeletonView: View {
         default: return lineColor
         }
     }
+
+    // MARK: - Bone opacity & style based on joint sources
+    private func boneOpacityAndStyle(jointA: VNHumanBodyPoseObservation.JointName, jointB: VNHumanBodyPoseObservation.JointName) -> (Double, StrokeStyle) {
+        let sourceA = jointSources[jointA] ?? .detected
+        let sourceB = jointSources[jointB] ?? .detected
+
+        let baseOpacity: Double
+        let dashPattern: [CGFloat]?
+        let capStyle: CGLineCap
+
+        if sourceA == .detected && sourceB == .detected {
+            baseOpacity = isReference ? 0.55 : 0.85
+            dashPattern = nil
+            capStyle = .round
+        } else if sourceA == .interpolated || sourceB == .interpolated {
+            baseOpacity = isReference ? 0.3 : 0.4
+            dashPattern = [4, 4]
+            capStyle = .round
+        } else {
+            // lastKnown or mixed non-detected
+            baseOpacity = isReference ? 0.25 : 0.25
+            dashPattern = nil
+            capStyle = .round
+        }
+
+        let effectiveLineWidth = isReference ? lineWidth * 0.8 : (sourceA == .interpolated || sourceB == .interpolated ? 1.8 : lineWidth)
+
+        return (
+            baseOpacity,
+            StrokeStyle(
+                lineWidth: effectiveLineWidth,
+                lineCap: capStyle,
+                dash: dashPattern
+            )
+        )
+    }
 }
 
 // MARK: - 简化版：只显示上半身（用于手势舞模式）
@@ -121,6 +174,7 @@ struct UpperBodySkeletonView: View {
     let viewSize: CGSize
     var lineColor: Color = .green
     var lineWidth: CGFloat = 2
+    var jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
 
     private static let upperBones: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
         (.nose, .neck),
@@ -138,8 +192,22 @@ struct UpperBodySkeletonView: View {
                 var path = Path()
                 path.move(to: a)
                 path.addLine(to: b)
-                context.stroke(path, with: .color(lineColor.opacity(0.7)),
-                               style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                
+                let sourceA = jointSources[jointA] ?? .detected
+                let sourceB = jointSources[jointB] ?? .detected
+                let opacity: Double = {
+                    if sourceA == .detected && sourceB == .detected {
+                        return 0.7
+                    } else if sourceA == .interpolated || sourceB == .interpolated {
+                        return 0.4
+                    } else {
+                        return 0.25
+                    }
+                }()
+                
+                let dashPattern = (sourceA == .interpolated || sourceB == .interpolated) ? [4, 4] : nil
+                context.stroke(path, with: .color(lineColor.opacity(opacity)),
+                               style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, dash: dashPattern))
             }
         }
         .allowsHitTesting(false)

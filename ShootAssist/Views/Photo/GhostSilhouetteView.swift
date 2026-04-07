@@ -38,6 +38,7 @@ struct GhostSilhouetteView: View {
 struct ReferenceSilhouetteView: View {
     let joints: [VNHumanBodyPoseObservation.JointName: CGPoint]
     let viewSize: CGSize
+    let jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
 
     // Vision 坐标（0,0在左下）→ SwiftUI 屏幕坐标
     private func pt(_ name: VNHumanBodyPoseObservation.JointName) -> CGPoint? {
@@ -45,10 +46,15 @@ struct ReferenceSilhouetteView: View {
         return CGPoint(x: p.x * viewSize.width, y: (1 - p.y) * viewSize.height)
     }
 
+    private func isEstimated(_ a: VNHumanBodyPoseObservation.JointName, _ b: VNHumanBodyPoseObservation.JointName) -> Bool {
+        let sourceA = jointSources[a]
+        let sourceB = jointSources[b]
+        return sourceA == .interpolated || sourceA == .lastKnown || sourceB == .interpolated || sourceB == .lastKnown
+    }
+
     var body: some View {
         Canvas { ctx, _ in
-            let color = Color.rosePink.opacity(0.55)
-            let fillColor = Color.rosePink.opacity(0.12)
+            let baseColor = Color.rosePink
             let lw: CGFloat = 5
 
             let connections: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName)] = [
@@ -75,11 +81,18 @@ struct ReferenceSilhouetteView: View {
             // 绘制连接线（厚描边，营造剪影感）
             for (a, b) in connections {
                 guard let pa = pt(a), let pb = pt(b) else { continue }
+                
+                let isEst = isEstimated(a, b)
+                let color = baseColor.opacity(isEst ? 0.3 : 0.55)
+                let lineWidth = isEst ? lw * 0.7 : lw
+                let strokeStyle = isEst
+                    ? StrokeStyle(lineWidth: lineWidth, lineCap: .round, dash: [4, 4])
+                    : StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                
                 var path = Path()
                 path.move(to: pa)
                 path.addLine(to: pb)
-                ctx.stroke(path, with: .color(color),
-                           style: StrokeStyle(lineWidth: lw, lineCap: .round))
+                ctx.stroke(path, with: .color(color), style: strokeStyle)
             }
 
             // 头部圆
@@ -88,17 +101,19 @@ struct ReferenceSilhouetteView: View {
                 let headCenter = CGPoint(x: neck.x, y: neck.y - headR * 2.2)
                 let headRect = CGRect(x: headCenter.x - headR, y: headCenter.y - headR,
                                       width: headR * 2, height: headR * 2)
-                ctx.fill(Path(ellipseIn: headRect), with: .color(fillColor))
-                ctx.stroke(Path(ellipseIn: headRect), with: .color(color),
-                           style: StrokeStyle(lineWidth: lw * 0.7))
+                ctx.fill(Path(ellipseIn: headRect), with: .color(baseColor.opacity(0.12)))
+                ctx.stroke(Path(ellipseIn: headRect), with: .color(baseColor.opacity(0.55)),
+                           style: StrokeStyle(lineWidth: lw * 0.7, lineCap: .round))
             }
 
             // 关节节点
-            for (_, p) in joints {
+            for (jointName, p) in joints {
                 let sp = CGPoint(x: p.x * viewSize.width, y: (1 - p.y) * viewSize.height)
-                let r: CGFloat = lw * 0.9
-                let rect = CGRect(x: sp.x - r, y: sp.y - r, width: r * 2, height: r * 2)
-                ctx.fill(Path(ellipseIn: rect), with: .color(color))
+                let source = jointSources[jointName]
+                let radius: CGFloat = source == .detected ? lw * 0.9 : lw * 0.5
+                let opacity: Double = source == .detected ? 0.55 : 0.25
+                let rect = CGRect(x: sp.x - radius, y: sp.y - radius, width: radius * 2, height: radius * 2)
+                ctx.fill(Path(ellipseIn: rect), with: .color(baseColor.opacity(opacity)))
             }
         }
         .allowsHitTesting(false)
