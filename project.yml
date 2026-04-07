@@ -21,6 +21,8 @@ targets:
     resources:
       - path: ShootAssist/Assets.xcassets
       - path: ShootAssist/Resources/scaler_params.json
+      - path: ShootAssist/PrivacyInfo.xcprivacy
+      - path: ShootAssist/ShootAssist.storekit
       # GestureClassifier.mlpackage 由 Codemagic 构建时生成后自动加入
       # 本地若存在则也会被 XcodeGen 识别
     settings:

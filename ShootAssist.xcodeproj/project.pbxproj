@@ -27,6 +27,31 @@
 		AA000018 /* PhotoSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000018; };
 		AA000019 /* VideoSaver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000019; };
 		AA000020 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB000020; };
+		AA000021 /* AudioPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000021; };
+		AA000022 /* ShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000022; };
+		AA000023 /* VideoPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000023; };
+		AA000024 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000024; };
+		AA000025 /* PaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000025; };
+		AA000026 /* PoseSkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000026; };
+		AA000027 /* PoseLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000027; };
+		AA000028 /* DemoTemplateDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000028; };
+		AA000029 /* LyricDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000029; };
+		AA000030 /* PoseDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000030; };
+		AA000031 /* Analytics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000031; };
+		AA000032 /* ComparisonCardService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000032; };
+		AA000033 /* GestureClassifierService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000033; };
+		AA000034 /* LyricRecognitionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000034; };
+		AA000035 /* PoseCompletionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000035; };
+		AA000036 /* PoseMatchingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000036; };
+		AA000037 /* PoseTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000037; };
+		AA000038 /* ReferralManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000038; };
+		AA000039 /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000039; };
+		AA000040 /* VideoAnalysisService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000040; };
+		AA000041 /* VideoWatermarkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000041; };
+		AA000042 /* VisionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB000042; };
+		AA000043 /* scaler_params.json in Resources */ = {isa = PBXBuildFile; fileRef = AB000043; };
+		AA000044 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AB000044; };
+		AA000045 /* ShootAssist.storekit in Resources */ = {isa = PBXBuildFile; fileRef = AB000045; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +75,31 @@
 		AB000018 /* PhotoSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoSaver.swift; sourceTree = "<group>"; };
 		AB000019 /* VideoSaver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoSaver.swift; sourceTree = "<group>"; };
 		AB000020 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB000021 /* AudioPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPickerView.swift; sourceTree = "<group>"; };
+		AB000022 /* ShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheet.swift; sourceTree = "<group>"; };
+		AB000023 /* VideoPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPicker.swift; sourceTree = "<group>"; };
+		AB000024 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AB000025 /* PaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallView.swift; sourceTree = "<group>"; };
+		AB000026 /* PoseSkeletonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseSkeletonView.swift; sourceTree = "<group>"; };
+		AB000027 /* PoseLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseLibraryView.swift; sourceTree = "<group>"; };
+		AB000028 /* DemoTemplateDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoTemplateDatabase.swift; sourceTree = "<group>"; };
+		AB000029 /* LyricDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricDatabase.swift; sourceTree = "<group>"; };
+		AB000030 /* PoseDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseDatabase.swift; sourceTree = "<group>"; };
+		AB000031 /* Analytics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Analytics.swift; sourceTree = "<group>"; };
+		AB000032 /* ComparisonCardService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonCardService.swift; sourceTree = "<group>"; };
+		AB000033 /* GestureClassifierService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GestureClassifierService.swift; sourceTree = "<group>"; };
+		AB000034 /* LyricRecognitionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LyricRecognitionService.swift; sourceTree = "<group>"; };
+		AB000035 /* PoseCompletionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseCompletionService.swift; sourceTree = "<group>"; };
+		AB000036 /* PoseMatchingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseMatchingService.swift; sourceTree = "<group>"; };
+		AB000037 /* PoseTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseTypes.swift; sourceTree = "<group>"; };
+		AB000038 /* ReferralManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReferralManager.swift; sourceTree = "<group>"; };
+		AB000039 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		AB000040 /* VideoAnalysisService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoAnalysisService.swift; sourceTree = "<group>"; };
+		AB000041 /* VideoWatermarkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWatermarkService.swift; sourceTree = "<group>"; };
+		AB000042 /* VisionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisionService.swift; sourceTree = "<group>"; };
+		AB000043 /* scaler_params.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = scaler_params.json; sourceTree = "<group>"; };
+		AB000044 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AB000045 /* ShootAssist.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = ShootAssist.storekit; sourceTree = "<group>"; };
 		AC000001 /* ShootAssist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ShootAssist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AC000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -83,7 +133,11 @@
 				AE000010 /* ViewModels */,
 				AE000011 /* Models */,
 				AE000012 /* Utils */,
+				AE000013 /* Resources */,
+				AE000014 /* Services */,
 				AB000020 /* Assets.xcassets */,
+				AB000044 /* PrivacyInfo.xcprivacy */,
+				AB000045 /* ShootAssist.storekit */,
 				AC000002 /* Info.plist */,
 			);
 			path = ShootAssist;
@@ -108,9 +162,12 @@
 		AE000005 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				AB000021 /* AudioPickerView.swift */,
+				AB000022 /* ShareSheet.swift */,
 				AB000003 /* SparkleView.swift */,
 				AB000004 /* ToastView.swift */,
 				AB000005 /* AnimatedCard.swift */,
+				AB000023 /* VideoPicker.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -119,7 +176,9 @@
 			isa = PBXGroup;
 			children = (
 				AE000007 /* Home */,
+				AE000015 /* Paywall */,
 				AE000008 /* Photo */,
+				AE000016 /* PoseLibrary */,
 				AE000009 /* Video */,
 			);
 			path = Views;
@@ -129,8 +188,17 @@
 			isa = PBXGroup;
 			children = (
 				AB000006 /* HomeView.swift */,
+				AB000024 /* OnboardingView.swift */,
 			);
 			path = Home;
+			sourceTree = "<group>";
+		};
+		AE000015 /* Paywall */ = {
+			isa = PBXGroup;
+			children = (
+				AB000025 /* PaywallView.swift */,
+			);
+			path = Paywall;
 			sourceTree = "<group>";
 		};
 		AE000008 /* Photo */ = {
@@ -140,8 +208,17 @@
 				AB000008 /* CameraPreviewView.swift */,
 				AB000009 /* PhotoOverlayView.swift */,
 				AB000010 /* GhostSilhouetteView.swift */,
+				AB000026 /* PoseSkeletonView.swift */,
 			);
 			path = Photo;
+			sourceTree = "<group>";
+		};
+		AE000016 /* PoseLibrary */ = {
+			isa = PBXGroup;
+			children = (
+				AB000027 /* PoseLibraryView.swift */,
+			);
+			path = PoseLibrary;
 			sourceTree = "<group>";
 		};
 		AE000009 /* Video */ = {
@@ -179,6 +256,36 @@
 				AB000019 /* VideoSaver.swift */,
 			);
 			path = Utils;
+			sourceTree = "<group>";
+		};
+		AE000013 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				AB000028 /* DemoTemplateDatabase.swift */,
+				AB000029 /* LyricDatabase.swift */,
+				AB000030 /* PoseDatabase.swift */,
+				AB000043 /* scaler_params.json */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		AE000014 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				AB000031 /* Analytics.swift */,
+				AB000032 /* ComparisonCardService.swift */,
+				AB000033 /* GestureClassifierService.swift */,
+				AB000034 /* LyricRecognitionService.swift */,
+				AB000035 /* PoseCompletionService.swift */,
+				AB000036 /* PoseMatchingService.swift */,
+				AB000037 /* PoseTypes.swift */,
+				AB000038 /* ReferralManager.swift */,
+				AB000039 /* SubscriptionManager.swift */,
+				AB000040 /* VideoAnalysisService.swift */,
+				AB000041 /* VideoWatermarkService.swift */,
+				AB000042 /* VisionService.swift */,
+			);
+			path = Services;
 			sourceTree = "<group>";
 		};
 		AE000099 /* Products */ = {
@@ -249,6 +356,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA000020 /* Assets.xcassets in Resources */,
+				AA000043 /* scaler_params.json in Resources */,
+				AA000044 /* PrivacyInfo.xcprivacy in Resources */,
+				AA000045 /* ShootAssist.storekit in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -278,6 +388,28 @@
 				AA000017 /* ShootMode.swift in Sources */,
 				AA000018 /* PhotoSaver.swift in Sources */,
 				AA000019 /* VideoSaver.swift in Sources */,
+				AA000021 /* AudioPickerView.swift in Sources */,
+				AA000022 /* ShareSheet.swift in Sources */,
+				AA000023 /* VideoPicker.swift in Sources */,
+				AA000024 /* OnboardingView.swift in Sources */,
+				AA000025 /* PaywallView.swift in Sources */,
+				AA000026 /* PoseSkeletonView.swift in Sources */,
+				AA000027 /* PoseLibraryView.swift in Sources */,
+				AA000028 /* DemoTemplateDatabase.swift in Sources */,
+				AA000029 /* LyricDatabase.swift in Sources */,
+				AA000030 /* PoseDatabase.swift in Sources */,
+				AA000031 /* Analytics.swift in Sources */,
+				AA000032 /* ComparisonCardService.swift in Sources */,
+				AA000033 /* GestureClassifierService.swift in Sources */,
+				AA000034 /* LyricRecognitionService.swift in Sources */,
+				AA000035 /* PoseCompletionService.swift in Sources */,
+				AA000036 /* PoseMatchingService.swift in Sources */,
+				AA000037 /* PoseTypes.swift in Sources */,
+				AA000038 /* ReferralManager.swift in Sources */,
+				AA000039 /* SubscriptionManager.swift in Sources */,
+				AA000040 /* VideoAnalysisService.swift in Sources */,
+				AA000041 /* VideoWatermarkService.swift in Sources */,
+				AA000042 /* VisionService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

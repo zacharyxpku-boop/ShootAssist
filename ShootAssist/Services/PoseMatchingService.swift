@@ -31,6 +31,9 @@ class PoseMatchingService {
 
     /// 最小所需关键点数（detected）用于可靠匹配
     var minRequiredJoints: Int = 5
+    private let torsoAnchors: [VNHumanBodyPoseObservation.JointName] = [
+        .neck, .leftShoulder, .rightShoulder, .leftHip, .rightHip, .root
+    ]
 
     // MARK: - 核心：比较两组关键点 (overloaded)
     /// reference: 参考图（或预设 Pose）的关键点
@@ -44,7 +47,9 @@ class PoseMatchingService {
 
         // Coverage checks
         let detectedRefCount = refSources.filter { $0.value == .detected }.count
-        if detectedRefCount < minRequiredJoints {
+        let refTorsoDetected = torsoAnchors.filter { refSources[$0] == .detected }.count
+        let refHasShoulderPair = refSources[.leftShoulder] == .detected && refSources[.rightShoulder] == .detected
+        if detectedRefCount < minRequiredJoints || refTorsoDetected < 3 || !refHasShoulderPair {
             return PoseMatchResult(
                 score: 0,
                 matchedJoints: 0,
@@ -53,12 +58,17 @@ class PoseMatchingService {
                 isMatched: false,
                 perJointMatch: [:],
                 canMatch: false,
-                coverageNote: "参考图关键点不足，无法进行可靠匹配"
+                coverageNote: "参考图躯干关键点不足，无法进行可靠匹配"
             )
         }
 
-        let totalCurCount = current.count
-        if totalCurCount < 3 {
+        let detectedCurCount = curSources.filter { $0.value == .detected }.count
+        let curTorsoReliable = torsoAnchors.filter {
+            let source = curSources[$0]
+            return source == .detected || source == .lastKnown
+        }.count
+        let curHasShoulderPair = current[.leftShoulder] != nil && current[.rightShoulder] != nil
+        if detectedCurCount < 3 || curTorsoReliable < 2 || !curHasShoulderPair {
             return PoseMatchResult(
                 score: 0,
                 matchedJoints: 0,
@@ -67,7 +77,7 @@ class PoseMatchingService {
                 isMatched: false,
                 perJointMatch: [:],
                 canMatch: false,
-                coverageNote: "实时检测关键点过少，请调整位置"
+                coverageNote: "实时骨架覆盖不足，请调整位置后再匹配"
             )
         }
 
@@ -117,16 +127,34 @@ class PoseMatchingService {
         var totalCount = 0
         var perJoint: [VNHumanBodyPoseObservation.JointName: Bool] = [:]
 
+        let criticalJoints: Set<VNHumanBodyPoseObservation.JointName> = [
+            .nose, .neck, .leftShoulder, .rightShoulder, .leftHip, .rightHip
+        ]
+
         for joint in compareJoints {
-            guard let refPt = refNorm[joint], let curPt = curNorm[joint] else { continue }
+            guard let refPt = refNorm[joint] else { continue }
             totalCount += 1
 
             // Assign weight based on source
             let refWeight: Float = refSources[joint] == .detected ? 1.0 : 0.4
-            let curWeight: Float = curSources[joint] == .detected ? 1.0 : 0.4
-            let jointWeight = min(refWeight, curWeight) // conservative weighting
+            let curWeight: Float
+            switch curSources[joint] {
+            case .detected?: curWeight = 1.0
+            case .lastKnown?: curWeight = 0.55
+            case .interpolated?: curWeight = 0.35
+            case nil: curWeight = criticalJoints.contains(joint) ? 0.8 : 0.4
+            }
+            let jointWeight = min(refWeight, curWeight)
 
             totalWeights += jointWeight
+
+            guard let curPt = curNorm[joint] else {
+                if criticalJoints.contains(joint) {
+                    tips.append(missingJointTip(for: joint))
+                }
+                perJoint[joint] = false
+                continue
+            }
 
             let dist = distance(refPt, curPt)
             let isClose = dist < jointTolerance
@@ -152,7 +180,7 @@ class PoseMatchingService {
             matchedJoints: matchedCount,
             totalJoints: totalCount,
             tips: topTips.isEmpty && weightedScore < matchThreshold ? ["继续调整姿势..."] : topTips,
-            isMatched: weightedScore >= matchThreshold,
+            isMatched: weightedScore >= matchThreshold && detectedCurCount >= minRequiredJoints,
             perJointMatch: perJoint,
             canMatch: true,
             coverageNote: nil
@@ -232,5 +260,14 @@ class PoseMatchingService {
     // MARK: - 两点距离
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y))
+    }
+
+    private func missingJointTip(for joint: VNHumanBodyPoseObservation.JointName) -> String {
+        switch joint {
+        case .nose: return "头部未检测到，请正对镜头"
+        case .neck, .leftShoulder, .rightShoulder: return "上半身未稳定检测到，请保持肩部入镜"
+        case .leftHip, .rightHip: return "下半身未检测到，请退后让髋部入镜"
+        default: return "关键点缺失，请调整姿势"
+        }
     }
 }

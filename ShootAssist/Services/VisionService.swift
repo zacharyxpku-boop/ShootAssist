@@ -51,12 +51,6 @@ class VisionService: NSObject, ObservableObject {
     private var lastKnownJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
     private var jointLastSeenFrame: [VNHumanBodyPoseObservation.JointName: Int] = [:]
     private let maxMissingFrames = 10
-    static let allJointNames: [VNHumanBodyPoseObservation.JointName] = [
-        .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
-        .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
-        .leftAnkle, .rightAnkle, .root
-    ]
-
     private let completionService = PoseCompletionService()
 
     // MARK: - 分析一帧（线程安全：每次创建新 Request，不复用）
@@ -144,6 +138,16 @@ class VisionService: NSObject, ObservableObject {
         }
         let shouldWarnLowLight = consecutiveNoPersonFrames >= lowLightThreshold
 
+        let smoothedCompleted = CompletedPose(
+            joints: joints,
+            jointSources: completed.jointSources,
+            observedCount: completed.observedCount,
+            inferredCount: completed.inferredCount,
+            completenessScore: completed.completenessScore,
+            canUseForMatching: completed.canUseForMatching,
+            reliabilityNote: completed.reliabilityNote
+        )
+
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.isPersonDetected = hasPerson
@@ -151,10 +155,10 @@ class VisionService: NSObject, ObservableObject {
             self.isFaceDetected = hasFace
             self.faceBoundingBox = faceBox
             self.bodyJoints = joints
-            self.jointSources = completed.jointSources
+            self.jointSources = smoothedCompleted.jointSources
             self.compositionAdvice = advice
             self.isLowLightWarning = shouldWarnLowLight
-            self.completedPose = completed
+            self.completedPose = smoothedCompleted
         }
     }
 
@@ -216,11 +220,11 @@ class VisionService: NSObject, ObservableObject {
 
         let personBox = personResult.boundingBox
         // Add 20% padding
-        let paddedBox = CGRect(
-            x: max(0, personBox.minX - 0.1),
-            y: max(0, personBox.minY - 0.1),
-            width: min(1.0, personBox.width + 0.2),
-            height: min(1.0, personBox.height + 0.2)
+        let paddedBox = normalizedRect(
+            x: personBox.minX - 0.1,
+            y: personBox.minY - 0.1,
+            width: personBox.width + 0.2,
+            height: personBox.height + 0.2
         )
 
         // Crop CGImage using Core Graphics
@@ -238,7 +242,7 @@ class VisionService: NSObject, ObservableObject {
 
         // Merge: prefer second-pass joints, fall back to first-pass
         var mergedJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
-        for joint in Self.allJointNames {
+        for joint in allPoseJointNames {
             if let pt = remappedSecondJoints[joint] {
                 mergedJoints[joint] = pt
             } else if let pt = firstJoints[joint] {
@@ -284,6 +288,16 @@ class VisionService: NSObject, ObservableObject {
             )
         }
         return result
+    }
+
+    private func normalizedRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
+        let clampedX = max(0, min(1, x))
+        let clampedY = max(0, min(1, y))
+        let maxWidth = max(0, 1 - clampedX)
+        let maxHeight = max(0, 1 - clampedY)
+        let clampedWidth = max(0, min(width, maxWidth))
+        let clampedHeight = max(0, min(height, maxHeight))
+        return CGRect(x: clampedX, y: clampedY, width: clampedWidth, height: clampedHeight)
     }
 
     // MARK: - 分析静态图片 Pose (LEGACY — DEPRECATED but kept for binary compat)

@@ -87,15 +87,6 @@ class PhotoModeViewModel: ObservableObject {
             .sink { [weak self] joints in
                 guard let self else { return }
                 self.liveJoints = joints
-                // 如果有参考图骨骼，执行实时匹配
-                if !self.referenceJoints.isEmpty && !joints.isEmpty {
-                    self.poseMatchResult = self.poseMatchingService.comparePoses(
-                        reference: self.referenceJoints,
-                        refSources: self.referenceJointSources,
-                        current: joints,
-                        curSources: self.liveJointSources
-                    )
-                }
             }
             .store(in: &cancellables)
 
@@ -121,6 +112,7 @@ class PhotoModeViewModel: ObservableObject {
             .sink { [weak self] completedPose in
                 guard let self else { return }
                 if let pose = completedPose {
+                    self.liveJoints = pose.joints
                     self.liveJointSources = pose.jointSources
                     // If we have both live joints and reference joints, recompute match
                     if !self.referenceJoints.isEmpty && !pose.joints.isEmpty {
@@ -157,50 +149,31 @@ class PhotoModeViewModel: ObservableObject {
             let completedPose = visionService.analyzePose(in: uiImage)
             DispatchQueue.main.async {
                 self.isAnalyzingReference = false
-                if let pose = completedPose {
-                    self.referenceJoints = pose.joints
-                    self.referenceJointSources = pose.jointSources
-                    self.referenceCompleteness = pose.completenessScore
-                    self.referenceReliabilityNote = pose.reliabilityNote
-                    self.isReferenceAnalyzed = pose.canUseForMatching
-                    if !pose.canUseForMatching {
-                        if !pose.joints.isEmpty {
-                            // Joints exist but not reliable enough for matching
-                            self.referenceAnalysisError = pose.reliabilityNote ?? "参考图姿态不够清晰"
-                        } else {
-                            // No joints at all
-                            self.referenceAnalysisError = "未检测到人物姿势，换一张试试"
-                        }
-                        self.poseMatchResult = PoseMatchResult(
-                            score: 0, matchedJoints: 0, totalJoints: 0,
-                            tips: [
-                                "参考图中未检测到人物姿势",
-                                "试试选一张人物清晰、全身可见的照片",
-                                "避免选修图过重或人体被大面积遮挡的图"
-                            ],
-                            isMatched: false, perJointMatch: [:],
-                            canMatch: false,
-                            coverageNote: nil
-                        )
+                let pose = completedPose
+                self.referenceJoints = pose.joints
+                self.referenceJointSources = pose.jointSources
+                self.referenceCompleteness = pose.completenessScore
+                self.referenceReliabilityNote = pose.reliabilityNote
+                self.isReferenceAnalyzed = pose.canUseForMatching
+                if !pose.canUseForMatching {
+                    if !pose.joints.isEmpty {
+                        self.referenceAnalysisError = pose.reliabilityNote ?? "参考图姿态不够清晰"
                     } else {
-                        // Success case — clear error
-                        self.referenceAnalysisError = nil
+                        self.referenceAnalysisError = "未检测到人物姿势，换一张试试"
                     }
-                } else {
-                    // Vision failed entirely
-                    self.referenceJoints = [:]
-                    self.referenceJointSources = [:]
-                    self.referenceCompleteness = 0
-                    self.referenceReliabilityNote = nil
-                    self.isReferenceAnalyzed = false
-                    self.referenceAnalysisError = "姿势分析失败，请重试"
                     self.poseMatchResult = PoseMatchResult(
                         score: 0, matchedJoints: 0, totalJoints: 0,
-                        tips: ["姿势分析失败，请重试"],
+                        tips: [
+                            "参考图中未检测到人物姿势",
+                            "试试选一张人物清晰、全身可见的照片",
+                            "避免选修图过重或人体被大面积遮挡的图"
+                        ],
                         isMatched: false, perJointMatch: [:],
                         canMatch: false,
                         coverageNote: nil
                     )
+                } else {
+                    self.referenceAnalysisError = nil
                 }
             }
         }

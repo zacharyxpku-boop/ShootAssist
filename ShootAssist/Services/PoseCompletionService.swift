@@ -35,12 +35,7 @@ class PoseCompletionService {
         merged = rawJoints
         
         // Fill missing joints with last known if within tolerance
-        let allJoints: [VNHumanBodyPoseObservation.JointName] = [
-            .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
-            .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
-            .leftAnkle, .rightAnkle, .root
-        ]
-        for joint in allJoints {
+        for joint in allPoseJointNames {
             if merged[joint] == nil {
                 if let lastPt = lastKnownJoints[joint],
                    let lastFrame = jointLastSeenFrame[joint],
@@ -64,7 +59,7 @@ class PoseCompletionService {
         let torsoAnchorObserved = Self.torsosAnchors.filter { rawJoints[$0] != nil }.count
         let torsoAnchorFraction = CGFloat(torsoAnchorObserved) / 6.0
         let totalObservedFraction = CGFloat(observedCount) / 15.0
-        let completenessScore = torsoAnchorFraction * 0.6 + totalObservedFraction * 0.4
+        let completenessScore = Float(torsoAnchorFraction * 0.6 + totalObservedFraction * 0.4)
         
         // Determine canUseForMatching: needs ≥ 0.35 score AND at least one shoulder pair
         let hasShoulderPair = rawJoints[.leftShoulder] != nil && rawJoints[.rightShoulder] != nil
@@ -237,14 +232,9 @@ class PoseCompletionService {
         merged: [VNHumanBodyPoseObservation.JointName: CGPoint],
         interpolated: [VNHumanBodyPoseObservation.JointName: CGPoint]
     ) -> [VNHumanBodyPoseObservation.JointName: JointSource] {
-        let allJointNames: [VNHumanBodyPoseObservation.JointName] = [
-            .nose, .neck, .leftShoulder, .rightShoulder, .leftElbow, .rightElbow,
-            .leftWrist, .rightWrist, .leftHip, .rightHip, .leftKnee, .rightKnee,
-            .leftAnkle, .rightAnkle, .root
-        ]
         var sources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
         
-        for joint in allJointNames {
+        for joint in allPoseJointNames {
             if raw[joint] != nil {
                 sources[joint] = .detected
             } else if merged[joint] != nil && interpolated[joint] == merged[joint] {
