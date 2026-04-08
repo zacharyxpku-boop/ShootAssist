@@ -81,24 +81,17 @@ workflows:
 
       - name: Export IPA
         script: |
-          cat > /tmp/ExportOptions.plist << 'EOF'
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>stripSwiftSymbols</key>
-            <true/>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          EOF
+          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
+          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
+          echo "Exporting with profile: $PROFILE_NAME"
+          rm -f /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string $PROFILE_NAME" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -exportOptionsPlist /tmp/ExportOptions.plist \
@@ -200,29 +193,15 @@ workflows:
             DEVELOPMENT_TEAM=THXYDBVXGW \
             PROVISIONING_PROFILE="$UUID" \
             CURRENT_PROJECT_VERSION="$NEW_BUILD"
-          cat > /tmp/ExportOptions.plist << PLIST_EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key>
-            <string>app-store</string>
-            <key>signingStyle</key>
-            <string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>com.shootassist.mobile</key>
-              <string>$PROFILE_NAME</string>
-            </dict>
-            <key>stripSwiftSymbols</key>
-            <true/>
-            <key>uploadBitcode</key>
-            <false/>
-            <key>uploadSymbols</key>
-            <true/>
-          </dict>
-          </plist>
-          PLIST_EOF
+          rm -f /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string $PROFILE_NAME" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
+          echo "ExportOptions.plist:"; /usr/libexec/PlistBuddy -c "Print" /tmp/ExportOptions.plist
           xcodebuild -exportArchive \
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -exportOptionsPlist /tmp/ExportOptions.plist \
