@@ -81,14 +81,9 @@ workflows:
 
       - name: Export IPA
         script: |
-          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          PROFILE_NAME=$(python3 -c "import plistlib; d=open('$PROFILE_PATH','rb').read(); s=d.find(b'<?xml'); s=d.find(b'bplist') if s==-1 else s; e=d.rfind(b'</plist>')+8; print(plistlib.loads(d[s:e])['Name'])")
-          echo "Exporting with profile: $PROFILE_NAME"
           rm -f /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ${PROFILE_NAME}" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string THXYDBVXGW" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
@@ -179,26 +174,16 @@ workflows:
           # 绕过 xcode-project build-ipa 的自动注入，确保 CURRENT_PROJECT_VERSION 精确写入 IPA
           NEW_BUILD=$(cat /tmp/build_number.txt)
           echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD"
-          PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          echo "Profile path: $PROFILE_PATH"
-          PROFILE_NAME=$(python3 -c "import plistlib; d=open('$PROFILE_PATH','rb').read(); s=d.find(b'<?xml'); s=d.find(b'bplist') if s==-1 else s; e=d.rfind(b'</plist>')+8; print(plistlib.loads(d[s:e])['Name'])")
-          UUID=$(python3 -c "import plistlib; d=open('$PROFILE_PATH','rb').read(); s=d.find(b'<?xml'); s=d.find(b'bplist') if s==-1 else s; e=d.rfind(b'</plist>')+8; print(plistlib.loads(d[s:e])['UUID'])")
-          echo "Using profile: $PROFILE_NAME (UUID: $UUID)"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
             -scheme ShootAssist \
             -configuration Release \
             -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
             -destination "generic/platform=iOS" \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM=THXYDBVXGW \
-            PROVISIONING_PROFILE="$UUID" \
             CURRENT_PROJECT_VERSION="$NEW_BUILD"
           rm -f /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ${PROFILE_NAME}" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string THXYDBVXGW" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
