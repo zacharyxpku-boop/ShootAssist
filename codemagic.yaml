@@ -188,6 +188,8 @@ workflows:
           echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD"
           PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
           UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
+          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
+          echo "Using profile: $PROFILE_NAME (UUID: $UUID)"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
             -scheme ShootAssist \
@@ -198,7 +200,7 @@ workflows:
             DEVELOPMENT_TEAM=THXYDBVXGW \
             PROVISIONING_PROFILE="$UUID" \
             CURRENT_PROJECT_VERSION="$NEW_BUILD"
-          cat > /tmp/ExportOptions.plist << 'PLIST_EOF'
+          cat > /tmp/ExportOptions.plist << PLIST_EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -207,6 +209,11 @@ workflows:
             <string>app-store</string>
             <key>signingStyle</key>
             <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.shootassist.mobile</key>
+              <string>$PROFILE_NAME</string>
+            </dict>
             <key>stripSwiftSymbols</key>
             <true/>
             <key>uploadBitcode</key>
