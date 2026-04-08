@@ -170,28 +170,14 @@ workflows:
       - name: Build IPA
         script: |
           cd $CM_BUILD_DIR
-          # 读取 Generate 步骤写入的 build number，直接传给 xcodebuild
-          # 绕过 xcode-project build-ipa 的自动注入，确保 CURRENT_PROJECT_VERSION 精确写入 IPA
           NEW_BUILD=$(cat /tmp/build_number.txt)
-          echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD"
-          xcodebuild archive \
-            -project ShootAssist.xcodeproj \
-            -scheme ShootAssist \
-            -configuration Release \
-            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -destination "generic/platform=iOS" \
-            CURRENT_PROJECT_VERSION="$NEW_BUILD"
-          rm -f /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :teamID string THXYDBVXGW" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
-          echo "ExportOptions.plist:"; /usr/libexec/PlistBuddy -c "Print" /tmp/ExportOptions.plist
-          xcodebuild -exportArchive \
-            -archivePath "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            -exportOptionsPlist /tmp/ExportOptions.plist \
-            -exportPath "$CM_BUILD_DIR/build/ios/ipa"
+          echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD (set via project.yml + xcodegen)"
+          xcode-project build-ipa \
+            --project ShootAssist.xcodeproj \
+            --scheme ShootAssist \
+            --config Release \
+            --archive-path "$CM_BUILD_DIR/ShootAssist.xcarchive" \
+            --ipa-output-directory "$CM_BUILD_DIR/build/ios/ipa"
 
     artifacts:
       - build/ios/ipa/*.ipa
