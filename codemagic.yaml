@@ -171,13 +171,24 @@ workflows:
         script: |
           cd $CM_BUILD_DIR
           NEW_BUILD=$(cat /tmp/build_number.txt)
-          echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD (set via project.yml + xcodegen)"
+          echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD"
+          rm -f /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :teamID string THXYDBVXGW" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ShootAssist ios_app_store 1775216981" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
+          echo "ExportOptions:"; /usr/libexec/PlistBuddy -c "Print" /tmp/ExportOptions.plist
           xcode-project build-ipa \
             --project ShootAssist.xcodeproj \
             --scheme ShootAssist \
             --config Release \
             --archive-path "$CM_BUILD_DIR/ShootAssist.xcarchive" \
-            --ipa-output-directory "$CM_BUILD_DIR/build/ios/ipa"
+            --ipa-output-directory "$CM_BUILD_DIR/build/ios/ipa" \
+            --export-options-plist /tmp/ExportOptions.plist
 
     artifacts:
       - build/ios/ipa/*.ipa
