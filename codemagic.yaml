@@ -82,13 +82,14 @@ workflows:
       - name: Export IPA
         script: |
           PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
+          security cms -D -i "$PROFILE_PATH" > /tmp/decoded_profile.plist
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/decoded_profile.plist)
           echo "Exporting with profile: $PROFILE_NAME"
           rm -f /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string $PROFILE_NAME" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ${PROFILE_NAME}" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
@@ -180,8 +181,9 @@ workflows:
           NEW_BUILD=$(cat /tmp/build_number.txt)
           echo "Building with CURRENT_PROJECT_VERSION=$NEW_BUILD"
           PROFILE_PATH=$(ls ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision 2>/dev/null | head -1)
-          UUID=$(security cms -D -i "$PROFILE_PATH" | plutil -extract UUID raw -)
-          PROFILE_NAME=$(security cms -D -i "$PROFILE_PATH" | plutil -extract Name raw -)
+          security cms -D -i "$PROFILE_PATH" > /tmp/decoded_profile.plist
+          UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /tmp/decoded_profile.plist)
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /tmp/decoded_profile.plist)
           echo "Using profile: $PROFILE_NAME (UUID: $UUID)"
           xcodebuild archive \
             -project ShootAssist.xcodeproj \
@@ -197,7 +199,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :method string app-store" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
-          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string $PROFILE_NAME" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ${PROFILE_NAME}" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
