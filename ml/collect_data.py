@@ -34,8 +34,8 @@ GESTURE_LABELS = [
 
 SEQUENCE_LENGTH = 15    # 每个样本帧数
 FEAT_DIM        = 18    # 9 关节点 × (x, y)
-FRAME_SKIP      = 3     # 每隔 N 帧采样一次
-MIN_CONFIDENCE  = 0.4   # 关键点最低置信度阈值
+FRAME_SKIP      = 2     # 每隔 N 帧采样（从3改为2，提取更密）
+MIN_CONFIDENCE  = 0.35  # 关键点最低置信度阈值（从0.4降低，容纳更多样本）
 
 BASE_DIR = Path(__file__).parent
 RAW_DIR  = BASE_DIR / "data" / "raw_videos"
@@ -123,7 +123,8 @@ def process_video(video_path: str) -> list:
         while len(all_frames) < SEQUENCE_LENGTH:
             all_frames.append(all_frames[-1] if all_frames else np.zeros(FEAT_DIM))
 
-    return sliding_window_sequences(all_frames, SEQUENCE_LENGTH, stride=3)
+    # stride=2 产出更多序列（原 stride=3 太稀疏）
+    return sliding_window_sequences(all_frames, SEQUENCE_LENGTH, stride=2)
 
 
 def main():

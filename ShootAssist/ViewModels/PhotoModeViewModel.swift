@@ -61,6 +61,11 @@ class PhotoModeViewModel: ObservableObject {
     @Published var referenceCompleteness: Float = 0
     @Published var referenceReliabilityNote: String? = nil
 
+    // MARK: - 新增：角度coaching + 光线检测 + 难度进阶
+    @Published var angleCoachingTips: [String] = []
+    @Published var lightingResult: LightingResult = .empty
+    let progressionService = PoseProgressionService()
+
     // MARK: - 服务
     private let poseMatchingService = PoseMatchingService()
     private var cancellables = Set<AnyCancellable>()
@@ -106,6 +111,12 @@ class PhotoModeViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // 光线检测结果
+        visionService.$lightingResult
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] result in self?.lightingResult = result }
+            .store(in: &cancellables)
+
         // Completed pose (includes joint sources and metadata)
         visionService.$completedPose
             .receive(on: DispatchQueue.main)
@@ -122,6 +133,25 @@ class PhotoModeViewModel: ObservableObject {
                             current: pose.joints,
                             curSources: pose.jointSources
                         )
+                        // 角度 coaching：只在匹配分数中等时提供（太低=姿势完全不对，太高=已经够好）
+                        if self.poseMatchResult.score > 0.3 && self.poseMatchResult.score < 0.85 {
+                            let coaching = self.poseMatchingService.angleCoaching(
+                                reference: self.referenceJoints,
+                                current: pose.joints
+                            )
+                            self.angleCoachingTips = coaching.prefix(2).map { $0.tip }
+                        } else {
+                            self.angleCoachingTips = []
+                        }
+
+                        // 匹配成功 → 记录进阶
+                        if self.poseMatchResult.isMatched {
+                            // 用 referenceImage 对应的 poseName (如果有)
+                            self.progressionService.recordCompletion(
+                                poseName: "clone_\(self.referenceImageVersion)",
+                                matchScore: self.poseMatchResult.score
+                            )
+                        }
                     }
                 }
             }

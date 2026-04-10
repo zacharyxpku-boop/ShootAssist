@@ -257,6 +257,68 @@ class PoseMatchingService {
         }
     }
 
+    // MARK: - 关节角度 coaching（精确指导"手臂弯曲多少度"）
+    struct AngleCoaching {
+        let joint: VNHumanBodyPoseObservation.JointName
+        let currentAngle: CGFloat   // 当前角度（度）
+        let targetAngle: CGFloat    // 目标角度（度）
+        let tip: String             // 具体指导
+    }
+
+    /// 计算三点构成的角度（度），vertex 是顶点
+    private func angleBetween(a: CGPoint, vertex: CGPoint, b: CGPoint) -> CGFloat {
+        let v1 = CGPoint(x: a.x - vertex.x, y: a.y - vertex.y)
+        let v2 = CGPoint(x: b.x - vertex.x, y: b.y - vertex.y)
+        let dot = v1.x * v2.x + v1.y * v2.y
+        let cross = v1.x * v2.y - v1.y * v2.x
+        let angle = atan2(cross, dot) * 180 / .pi
+        return abs(angle)
+    }
+
+    /// 对比关键角度，返回需要调整的 coaching 建议
+    func angleCoaching(
+        reference: [VNHumanBodyPoseObservation.JointName: CGPoint],
+        current: [VNHumanBodyPoseObservation.JointName: CGPoint],
+        tolerance: CGFloat = 20  // 允许±20°偏差
+    ) -> [AngleCoaching] {
+        // 定义需要检查的角度：(端点A, 顶点, 端点B, 关节名, 中文名)
+        let angleChecks: [(VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName, VNHumanBodyPoseObservation.JointName, String)] = [
+            (.leftShoulder, .leftElbow, .leftWrist, "左臂"),
+            (.rightShoulder, .rightElbow, .rightWrist, "右臂"),
+            (.leftHip, .leftKnee, .leftAnkle, "左腿"),
+            (.rightHip, .rightKnee, .rightAnkle, "右腿"),
+            (.leftElbow, .leftShoulder, .leftHip, "左肩"),
+            (.rightElbow, .rightShoulder, .rightHip, "右肩"),
+        ]
+
+        var results: [AngleCoaching] = []
+
+        for (a, vertex, b, name) in angleChecks {
+            guard let refA = reference[a], let refV = reference[vertex], let refB = reference[b],
+                  let curA = current[a], let curV = current[vertex], let curB = current[b] else {
+                continue
+            }
+
+            let refAngle = angleBetween(a: refA, vertex: refV, b: refB)
+            let curAngle = angleBetween(a: curA, vertex: curV, b: curB)
+            let diff = curAngle - refAngle
+
+            if abs(diff) > tolerance {
+                let direction = diff > 0 ? "弯曲" : "伸展"
+                let degrees = Int(abs(diff))
+                let tip = "\(name)\(direction)约\(degrees)°"
+                results.append(AngleCoaching(
+                    joint: vertex,
+                    currentAngle: curAngle,
+                    targetAngle: refAngle,
+                    tip: tip
+                ))
+            }
+        }
+
+        return results
+    }
+
     // MARK: - 两点距离
     private func distance(_ a: CGPoint, _ b: CGPoint) -> CGFloat {
         sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y))

@@ -41,7 +41,7 @@ def load_scaler():
 
 
 def main():
-    print("📥 加载 Keras 模型...")
+    print("Loading Keras model...")
     model = tf.keras.models.load_model(H5_PATH)
     label_map = load_label_map()
     scaler = load_scaler()
@@ -60,7 +60,7 @@ def main():
     print(f"   模型输出 shape: {pred.shape}")
 
     # ── 转换为 CoreML ──
-    print("🔄 转换为 CoreML...")
+    print("Converting to CoreML...")
 
     # 将 scaler 参数导出为 JSON，供 iOS 端做预处理（CoreML 不支持 sklearn scaler）
     if scaler is not None:
@@ -80,11 +80,36 @@ def main():
     full_model = model
 
     # 使用 coremltools 转换
-    mlmodel = ct.convert(
-        full_model,
+    # TF 2.21 + coremltools 直接转换有 LSTM 兼容性问题
+    # 绕路：TF → SavedModel → ONNX → CoreML
+    import subprocess, sys
+
+    saved_model_dir = os.path.join(MODEL_DIR, "gesture_saved_model")
+    onnx_path = os.path.join(MODEL_DIR, "GestureClassifier.onnx")
+
+    # Step A: 导出为 SavedModel（Keras 3 用 export）
+    print("  Step A: exporting TF SavedModel...")
+    full_model.export(saved_model_dir)
+
+    # Step B: SavedModel → ONNX
+    print("  Step B: converting to ONNX...")
+    subprocess.run([
+        sys.executable, "-m", "tf2onnx.convert",
+        "--saved-model", saved_model_dir,
+        "--output", onnx_path,
+        "--opset", "13",
+    ], check=True, capture_output=True)
+    print(f"  ONNX saved: {onnx_path}")
+
+    # Step C: ONNX → CoreML
+    print("  Step C: converting ONNX to CoreML...")
+    mlmodel = ct.converters.onnx.convert(
+        model=onnx_path,
+        minimum_ios_deployment_target="15",
+    ) if hasattr(ct.converters, 'onnx') else ct.convert(
+        onnx_path,
         inputs=[ct.TensorType(name="keypoints", shape=(1, SEQ_LEN, FEAT_DIM))],
-        outputs=[ct.TensorType(name="gesture_prob")],
-        convert_to="mlprogram",         # iOS 15+ Neural Engine 加速
+        convert_to="mlprogram",
         minimum_deployment_target=ct.target.iOS15,
     )
 
@@ -98,7 +123,7 @@ def main():
 
     # 保存
     mlmodel.save(OUTPUT_PATH)
-    print(f"\n✅ CoreML 模型已保存: {OUTPUT_PATH}")
+    print(f"\n[OK] CoreML model saved: {OUTPUT_PATH}")
     print(f"   类别顺序: {class_labels}")
 
     # ── 生成 iOS 用的 Swift 常量文件 ──
@@ -108,7 +133,7 @@ def main():
         f.write(swift_constants)
     print(f"   Swift 常量: {swift_path}")
 
-    print("\n📌 下一步：")
+    print("\nNext steps:")
     print(f"   1. 把 {OUTPUT_PATH} 拖入 Xcode 项目（Target → ShootAssist）")
     print(f"   2. 把 {swift_path} 复制到 ShootAssist/Services/")
     print("   3. GestureClassifierService.swift 会自动加载该模型")

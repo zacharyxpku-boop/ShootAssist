@@ -33,6 +33,11 @@ class VisionService: NSObject, ObservableObject {
     @Published var completedPose: CompletedPose?
 
     @Published var isLowLightWarning: Bool = false  // 连续失败 → 光线不足提示
+    @Published var lightingResult: LightingResult = .empty
+
+    private let lightingService = LightingDetectionService()
+    private var lightingFrameCounter: Int = 0
+    private let lightingAnalyzeInterval = 15  // 每15帧分析一次光线（不用每帧）
 
     private var frameCount: Int = 0
     private var consecutiveNoPersonFrames: Int = 0
@@ -138,6 +143,18 @@ class VisionService: NSObject, ObservableObject {
         }
         let shouldWarnLowLight = consecutiveNoPersonFrames >= lowLightThreshold
 
+        // 光线检测（降频：每 lightingAnalyzeInterval 帧一次）
+        self.lightingFrameCounter += 1
+        let newLighting: LightingResult?
+        if self.lightingFrameCounter % self.lightingAnalyzeInterval == 0 {
+            newLighting = self.lightingService.analyzeLighting(
+                pixelBuffer: pixelBuffer,
+                faceRect: hasFace ? faceBox : nil
+            )
+        } else {
+            newLighting = nil
+        }
+
         let smoothedCompleted = CompletedPose(
             joints: joints,
             jointSources: completed.jointSources,
@@ -158,6 +175,9 @@ class VisionService: NSObject, ObservableObject {
             self.jointSources = smoothedCompleted.jointSources
             self.compositionAdvice = advice
             self.isLowLightWarning = shouldWarnLowLight
+            if let lighting = newLighting {
+                self.lightingResult = lighting
+            }
             self.completedPose = smoothedCompleted
         }
     }

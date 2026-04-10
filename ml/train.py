@@ -29,19 +29,58 @@ LABELS = [
     "fly_kiss", "cover_face", "hands_on_hips", "cross_arms", "chin_rest", "neutral"
 ]
 
+# ── 左右关节交换索引（9 关节: nose, L_sh, R_sh, L_el, R_el, L_wr, R_wr, L_hp, R_hp）
+# 翻转时需要把左右对称关节的值互换
+_SWAP_PAIRS = [(1, 2), (3, 4), (5, 6), (7, 8)]  # (L_sh↔R_sh, L_el↔R_el, L_wr↔R_wr, L_hp↔R_hp)
+
+
 # ── 数据增强 ──────────────────────────────────────────
 def augment(x: np.ndarray) -> np.ndarray:
-    """x: (15, 18)"""
+    """x: (15, 18)  ←  9 joints × (x, y)"""
     x = x.copy()
-    # 水平翻转（x 坐标取反）
+
+    # 1) 水平翻转 + 左右关节交换
     if random.random() < 0.5:
         x[:, 0::2] = -x[:, 0::2]
-    # 高斯噪声
+        for li, ri in _SWAP_PAIRS:
+            lx, ly = li * 2, li * 2 + 1
+            rx, ry = ri * 2, ri * 2 + 1
+            x[:, [lx, ly, rx, ry]] = x[:, [rx, ry, lx, ly]]
+
+    # 2) 高斯噪声（sigma 随机化）
     if random.random() < 0.5:
-        x += np.random.normal(0, 0.012, x.shape)
-    # 时间拉伸 (0.8x / 1.2x → resize back to SEQ_LEN)
+        sigma = random.uniform(0.005, 0.02)
+        x += np.random.normal(0, sigma, x.shape)
+
+    # 3) 2D 旋转 ±15° (以 hip 中心为原点)
+    if random.random() < 0.4:
+        angle = random.uniform(-15, 15) * np.pi / 180
+        cos_a, sin_a = np.cos(angle), np.sin(angle)
+        # hip center = mean of L_hip(7) and R_hip(8) joints
+        cx = (x[:, 14] + x[:, 16]).mean() / 2  # approximate center
+        cy = (x[:, 15] + x[:, 17]).mean() / 2
+        for j in range(9):
+            jx, jy = j * 2, j * 2 + 1
+            dx, dy = x[:, jx] - cx, x[:, jy] - cy
+            x[:, jx] = cos_a * dx - sin_a * dy + cx
+            x[:, jy] = sin_a * dx + cos_a * dy + cy
+
+    # 4) 尺度扰动 (0.85x ~ 1.15x)
+    if random.random() < 0.4:
+        scale = random.uniform(0.85, 1.15)
+        x *= scale
+
+    # 5) 关节 dropout（模拟遮挡，随机归零 1-2 个关节）
+    if random.random() < 0.3:
+        n_drop = random.randint(1, 2)
+        drop_joints = random.sample(range(9), n_drop)
+        for j in drop_joints:
+            x[:, j * 2] = 0.0
+            x[:, j * 2 + 1] = 0.0
+
+    # 6) 时间拉伸 (0.75x ~ 1.3x)
     if random.random() < 0.5:
-        rate = random.choice([0.8, 1.2])
+        rate = random.uniform(0.75, 1.3)
         new_len = max(4, int(SEQ_LEN * rate))
         old_idx = np.linspace(0, SEQ_LEN - 1, SEQ_LEN)
         new_idx = np.linspace(0, SEQ_LEN - 1, new_len)
@@ -49,7 +88,8 @@ def augment(x: np.ndarray) -> np.ndarray:
         back_idx = np.linspace(0, new_len - 1, SEQ_LEN)
         src_idx  = np.linspace(0, new_len - 1, new_len)
         x = np.array([np.interp(back_idx, src_idx, stretched[:, i]) for i in range(FEAT_DIM)]).T
-    # 随机裁剪 → resize 回 SEQ_LEN
+
+    # 7) 随机时间裁剪 → resize 回 SEQ_LEN
     if random.random() < 0.5 and SEQ_LEN > 4:
         crop = random.randint(SEQ_LEN * 7 // 10, SEQ_LEN - 1)
         start = random.randint(0, SEQ_LEN - crop)
@@ -57,14 +97,44 @@ def augment(x: np.ndarray) -> np.ndarray:
         old_idx = np.linspace(0, crop - 1, crop)
         new_idx = np.linspace(0, crop - 1, SEQ_LEN)
         x = np.array([np.interp(new_idx, old_idx, seg[:, i]) for i in range(FEAT_DIM)]).T
+
+    # 8) 时间遮蔽（随机置零连续 1-3 帧）
+    if random.random() < 0.3:
+        mask_len = random.randint(1, 3)
+        mask_start = random.randint(0, SEQ_LEN - mask_len)
+        x[mask_start:mask_start + mask_len] = 0.0
+
     return x.astype(np.float32)
 
 
-def augment_dataset(X, y, factor=8):
+def mixup_pair(x1: np.ndarray, x2: np.ndarray, alpha: float = 0.3) -> np.ndarray:
+    """Mixup: 同类两条序列的加权混合"""
+    lam = np.random.beta(alpha, alpha)
+    return (lam * x1 + (1 - lam) * x2).astype(np.float32)
+
+
+def augment_dataset(X, y, factor=10):
+    """增强数据集：常规增强 + 类内 mixup"""
     Xa, ya = [X], [y]
+    # 常规增强
     for _ in range(factor):
         Xa.append(np.stack([augment(x) for x in X]))
         ya.append(y)
+    # 类内 mixup（额外 2x）
+    unique_labels = np.unique(y)
+    for _ in range(2):
+        mixed_X, mixed_y = [], []
+        for label in unique_labels:
+            idxs = np.where(y == label)[0]
+            if len(idxs) < 2:
+                continue
+            for _ in range(len(idxs)):
+                i, j = random.sample(list(idxs), 2)
+                mixed_X.append(mixup_pair(X[i], X[j]))
+                mixed_y.append(label)
+        if mixed_X:
+            Xa.append(np.stack(mixed_X))
+            ya.append(np.array(mixed_y, dtype=np.int32))
     return np.concatenate(Xa), np.concatenate(ya)
 
 
@@ -88,7 +158,7 @@ def load_data():
                 continue
         X_all.append(seqs)
         y_all.extend([len(present_labels)] * len(seqs))
-        print(f'  ✅ {label}: {len(seqs)} 个样本')
+        print(f'  [OK] {label}: {len(seqs)} samples')
         present_labels.append(label)
 
     if not X_all:
@@ -196,9 +266,9 @@ def main():
     print('\n' + '='*55)
     print(classification_report(y_val, y_pred, target_names=names, zero_division=0))
     print(f'  最佳 val_accuracy: {max(history.history.get("val_accuracy", [0])):.4f}')
-    print(f'\n  ✅ models/gesture_lstm.h5')
-    print(f'  ✅ models/label_map.json')
-    print(f'  ✅ models/scaler.pkl')
+    print(f'\n  [OK] models/gesture_lstm.h5')
+    print(f'  [OK] models/label_map.json')
+    print(f'  [OK] models/scaler.pkl')
     print('  下一步: python ml/convert_coreml.py')
 
 

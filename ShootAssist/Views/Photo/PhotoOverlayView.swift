@@ -20,6 +20,11 @@ struct PhotoOverlayView: View {
     let referenceCompleteness: Float
     let referenceReliabilityNote: String?
 
+    // 新增：光线 + 角度coaching + 匹配分
+    let lightingResult: LightingResult
+    let angleCoachingTips: [String]
+    let poseMatchScore: Float
+
     init(
         subMode: PhotoSubMode = .influencerClone,
         isShootingPhase: Bool = false,
@@ -34,7 +39,10 @@ struct PhotoOverlayView: View {
         referenceJointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:],
         isReferenceAnalyzed: Bool = false,
         referenceCompleteness: Float = 1.0,
-        referenceReliabilityNote: String? = nil
+        referenceReliabilityNote: String? = nil,
+        lightingResult: LightingResult = .empty,
+        angleCoachingTips: [String] = [],
+        poseMatchScore: Float = 0
     ) {
         self.subMode = subMode
         self.isShootingPhase = isShootingPhase
@@ -50,6 +58,9 @@ struct PhotoOverlayView: View {
         self.isReferenceAnalyzed = isReferenceAnalyzed
         self.referenceCompleteness = referenceCompleteness
         self.referenceReliabilityNote = referenceReliabilityNote
+        self.lightingResult = lightingResult
+        self.angleCoachingTips = angleCoachingTips
+        self.poseMatchScore = poseMatchScore
     }
 
     var body: some View {
@@ -57,6 +68,12 @@ struct PhotoOverlayView: View {
             ZStack {
                 // MARK: - 黄金分割线（所有子模式）
                 GoldenRatioGrid(size: geo.size)
+
+                // MARK: - 光线状态徽标（左上角，所有模式可见）
+                if lightingResult.quality != .unknown && lightingResult.quality != .good {
+                    LightingBadge(result: lightingResult)
+                        .position(x: 60, y: 52)
+                }
 
                 // 四角取景框
                 if subMode == .influencerClone || subMode == .smartComposition {
@@ -75,7 +92,13 @@ struct PhotoOverlayView: View {
                             .opacity(0.35)
                     }
 
-                    // 2. 对齐引导文字
+                    // 2. 匹配分数环 + 角度coaching（右上角）
+                    if poseMatchScore > 0.01 {
+                        PoseScoreRing(score: poseMatchScore, coachingTips: angleCoachingTips)
+                            .position(x: geo.size.width - 50, y: 80)
+                    }
+
+                    // 3. 对齐引导文字
                     VStack(spacing: 4) {
                         Text("调整位置，使被拍者与轮廓对齐")
                             .font(.system(size: 12, weight: .medium))
@@ -244,5 +267,90 @@ private struct GuideBubble: View {
             .padding(.horizontal, 14).padding(.vertical, 7)
             .background(Capsule().fill(Color.rosePink.opacity(0.85)))
             .animation(.easeInOut(duration: 0.3), value: text)
+    }
+}
+
+// MARK: - 光线状态徽标
+private struct LightingBadge: View {
+    let result: LightingResult
+
+    private var icon: String {
+        switch result.quality {
+        case .backlit: return "sun.max.trianglebadge.exclamationmark"
+        case .harshSide: return "sun.haze"
+        case .tooDark: return "moon"
+        case .tooBright: return "sun.max.fill"
+        default: return "sun.min"
+        }
+    }
+
+    private var badgeColor: Color {
+        switch result.quality {
+        case .backlit, .tooDark: return .orange
+        case .harshSide: return .yellow
+        case .tooBright: return .red
+        default: return .green
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(result.tips.first ?? result.quality.rawValue)
+                .font(.system(size: 9, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(badgeColor.opacity(0.75)))
+        .animation(.easeInOut(duration: 0.5), value: result.quality.rawValue)
+    }
+}
+
+// MARK: - 匹配分数环 + 角度 coaching
+private struct PoseScoreRing: View {
+    let score: Float
+    let coachingTips: [String]
+
+    private var ringColor: Color {
+        if score >= 0.65 { return .green }
+        if score >= 0.4 { return .yellow }
+        return .orange
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // 圆环分数
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.15), lineWidth: 3)
+                    .frame(width: 44, height: 44)
+                Circle()
+                    .trim(from: 0, to: CGFloat(score))
+                    .stroke(ringColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 44, height: 44)
+                    .rotationEffect(.degrees(-90))
+                Text("\(Int(score * 100))")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+            }
+            .animation(.easeInOut(duration: 0.3), value: score)
+
+            // 角度调整提示
+            if !coachingTips.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(coachingTips, id: \.self) { tip in
+                        Text(tip)
+                            .font(.system(size: 8, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.black.opacity(0.55)))
+            }
+        }
     }
 }

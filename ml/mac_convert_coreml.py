@@ -1,43 +1,130 @@
 """
-mac_convert_coreml.py — 在 Mac 上将 gesture_lstm.h5 转为 CoreML
-需要 macOS + coremltools 7.x
+mac_convert_coreml.py — 在 macOS 上运行（本地 Mac 或 Codemagic CI）
+将 ONNX/H5 模型转为 CoreML .mlpackage
 
-使用: python ml/mac_convert_coreml.py
-输出: ml/models/GestureClassifier.mlpackage  ← 拖入 Xcode
+Windows 上 coremltools 缺 libcoremlpython 且 TF2.21 LSTM 转换有 bug。
+此脚本专供 macOS 使用。
+
+用法 (macOS):
+  pip install coremltools onnx
+  python ml/mac_convert_coreml.py
+
+Codemagic pre-build:
+  python3 ml/mac_convert_coreml.py
 """
-import json, pickle
-import numpy as np
-import tensorflow as tf
-import coremltools as ct
+
+import os, json
 from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "models"
-SEQ_LEN = 15
+ONNX_PATH = MODEL_DIR / "GestureClassifier.onnx"
+H5_PATH   = MODEL_DIR / "gesture_lstm.h5"
+LABEL_MAP = MODEL_DIR / "label_map.json"
+OUTPUT    = MODEL_DIR / "GestureClassifier.mlpackage"
+
+SEQ_LEN  = 15
 FEAT_DIM = 18
 
-model = tf.keras.models.load_model(str(MODEL_DIR / "gesture_lstm.h5"))
-with open(MODEL_DIR / "label_map.json") as f:
-    label_map = {int(k): v for k, v in json.load(f).items()}
-with open(MODEL_DIR / "scaler.pkl", "rb") as f:
-    scaler = pickle.load(f)
 
-labels = [label_map[i] for i in sorted(label_map.keys())]
-print(f"Labels: {labels}")
+def main():
+    import coremltools as ct
 
-# iOS GestureClassifierService already applies StandardScaler normalization before inference.
-# Export raw model (no normalization baked in) — input expects already-normalized keypoints.
-full_model = model
+    with open(LABEL_MAP, "r", encoding="utf-8") as f:
+        label_map = {int(k): v for k, v in json.load(f).items()}
+    labels = [label_map[i] for i in sorted(label_map.keys())]
+    print(f"Labels ({len(labels)}): {labels}")
 
-mlmodel = ct.convert(
-    full_model,
-    inputs=[ct.TensorType(name="keypoints", shape=(1, SEQ_LEN, FEAT_DIM))],
-    outputs=[ct.TensorType(name="gesture_prob")],
-    convert_to="mlprogram",
-    minimum_deployment_target=ct.target.iOS15,
-)
+    mlmodel = None
 
-mlmodel.short_description = "ShootAssist gesture classifier (LSTM+CNN, 7 classes)"
-out = str(MODEL_DIR / "GestureClassifier.mlpackage")
-mlmodel.save(out)
-print(f"Saved: {out}")
-print(f"Classes: {labels}")
+    # Path 1: ONNX (preferred, no TF dependency)
+    if ONNX_PATH.exists():
+        print(f"Source: {ONNX_PATH}")
+        try:
+            mlmodel = ct.convert(
+                str(ONNX_PATH),
+                inputs=[ct.TensorType(name="keypoints", shape=(1, SEQ_LEN, FEAT_DIM))],
+                outputs=[ct.TensorType(name="gesture_prob")],
+                convert_to="mlprogram",
+                minimum_deployment_target=ct.target.iOS15,
+            )
+        except Exception as e:
+            print(f"ONNX failed: {e}, trying H5...")
+
+    # Path 2: Keras H5
+    if mlmodel is None and H5_PATH.exists():
+        print(f"Source: {H5_PATH}")
+        import tensorflow as tf
+        model = tf.keras.models.load_model(str(H5_PATH))
+        mlmodel = ct.convert(
+            model,
+            source="tensorflow",
+            inputs=[ct.TensorType(name="keypoints", shape=(1, SEQ_LEN, FEAT_DIM))],
+            outputs=[ct.TensorType(name="gesture_prob")],
+            convert_to="mlprogram",
+            minimum_deployment_target=ct.target.iOS15,
+        )
+
+    if mlmodel is None:
+        print("ERROR: no model file found")
+        return
+
+    mlmodel.short_description = f"ShootAssist gesture classifier ({len(labels)} classes)"
+    mlmodel.save(str(OUTPUT))
+    print(f"[OK] {OUTPUT}")
+
+    # Swift constants
+    swift = gen_swift(labels)
+    swift_path = MODEL_DIR / "GestureLabels.swift"
+    swift_path.write_text(swift, encoding="utf-8")
+    print(f"[OK] {swift_path}")
+
+
+def gen_swift(labels):
+    sf = {
+        "raise_both_hands": "hands.sparkles",
+        "point_up": "hand.point.up",
+        "heart": "heart.fill",
+        "clap": "hands.clap",
+        "spread_arms": "figure.arms.open",
+        "fly_kiss": "mouth",
+        "cover_face": "theatermask.and.paintbrush",
+        "hands_on_hips": "figure.stand",
+        "cross_arms": "xmark",
+        "chin_rest": "hand.raised",
+        "neutral": "figure.stand",
+    }
+    cn = {
+        "raise_both_hands": "hands up",
+        "point_up": "point up",
+        "heart": "heart",
+        "clap": "clap",
+        "spread_arms": "spread arms",
+        "fly_kiss": "fly kiss",
+        "cover_face": "cover face",
+        "hands_on_hips": "hands on hips",
+        "cross_arms": "cross arms",
+        "chin_rest": "chin rest",
+        "neutral": "neutral",
+    }
+    lines = [
+        "// GestureLabels.swift - auto-generated",
+        "import Foundation",
+        "",
+        "enum GestureLabel: Int, CaseIterable {",
+    ]
+    for i, l in enumerate(labels):
+        lines.append(f"    case {l} = {i}")
+    lines += ["}", "", "extension GestureLabel {",
+              "    var sfSymbol: String {", "        switch self {"]
+    for l in labels:
+        lines.append(f'        case .{l}: return "{sf.get(l, "questionmark")}"')
+    lines += ["        }", "    }", "",
+              "    var displayName: String {", "        switch self {"]
+    for l in labels:
+        lines.append(f'        case .{l}: return "{cn.get(l, l)}"')
+    lines += ["        }", "    }", "}"]
+    return "\n".join(lines) + "\n"
+
+
+if __name__ == "__main__":
+    main()

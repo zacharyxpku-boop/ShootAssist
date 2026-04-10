@@ -133,7 +133,10 @@ struct PhotoModeView: View {
                         referenceJointSources: photoVM.referenceJointSources,
                         isReferenceAnalyzed: photoVM.isReferenceAnalyzed,
                         referenceCompleteness: photoVM.referenceCompleteness,
-                        referenceReliabilityNote: photoVM.referenceReliabilityNote
+                        referenceReliabilityNote: photoVM.referenceReliabilityNote,
+                        lightingResult: photoVM.lightingResult,
+                        angleCoachingTips: photoVM.angleCoachingTips,
+                        poseMatchScore: photoVM.poseMatchResult.score
                     )
 
                     // 拍同款设置阶段遮罩
