@@ -83,7 +83,10 @@ workflows:
         script: |
           rm -f /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string manual" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :teamID string THXYDBVXGW" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles dict" /tmp/ExportOptions.plist
+          /usr/libexec/PlistBuddy -c "Add :provisioningProfiles:com.shootassist.mobile string ShootAssist ios_app_store 1775216981" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :stripSwiftSymbols bool true" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadBitcode bool false" /tmp/ExportOptions.plist
           /usr/libexec/PlistBuddy -c "Add :uploadSymbols bool true" /tmp/ExportOptions.plist
