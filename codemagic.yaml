@@ -40,15 +40,9 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          # 从 App Store Connect 拉取最新 build number，自动 +1，彻底避免重复上传报错
-          MIN_BUILD=10
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
-                    --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-                    --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-                    2>/dev/null || echo "$MIN_BUILD")
-          if [ "$LATEST" -lt "$MIN_BUILD" ]; then LATEST=$MIN_BUILD; fi
-          NEW_BUILD=$((LATEST + 1))
-          echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
+          # 用 Unix 时间戳做 build number，永远不重复
+          NEW_BUILD=$(date +%s)
+          echo "Build number: $NEW_BUILD"
           perl -i -pe "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
           grep CURRENT_PROJECT_VERSION project.yml
           xcodegen generate
@@ -144,18 +138,9 @@ workflows:
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
-          # 从 App Store Connect 拉取最新 build number，自动 +1
-          # get-latest-testflight-build-number 只返回已到达 TestFlight 的构建，
-          # "Processing" 中的构建不计入，所以用 MIN_BUILD 兜底
-          MIN_BUILD=10
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APP_ID" \
-                    --api-key "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
-                    --issuer-id "$APP_STORE_CONNECT_ISSUER_ID" \
-                    2>/dev/null || echo "$MIN_BUILD")
-          if [ "$LATEST" -lt "$MIN_BUILD" ]; then LATEST=$MIN_BUILD; fi
-          NEW_BUILD=$((LATEST + 1))
-          echo "App Store latest build: $LATEST → new build: $NEW_BUILD"
-          # 持久化给 Build IPA 步骤跨步骤读取
+          # 用 Unix 时间戳做 build number，永远不重复
+          NEW_BUILD=$(date +%s)
+          echo "Build number: $NEW_BUILD"
           echo "$NEW_BUILD" > /tmp/build_number.txt
           perl -i -pe "s/CURRENT_PROJECT_VERSION:.*/CURRENT_PROJECT_VERSION: \"$NEW_BUILD\"/" project.yml
           grep CURRENT_PROJECT_VERSION project.yml
