@@ -57,9 +57,9 @@ struct VideoModeView: View {
                     CameraPreviewView(session: cameraVM.session, onTapToFocus: { point in
                         cameraVM.focusAt(point: point)
                     })
-                        .gesture(MagnifyGesture()
-                            .onChanged { value in
-                                cameraVM.setZoom(baseZoomLevel * value.magnification)
+                        .gesture(MagnificationGesture()
+                            .onChanged { scale in
+                                cameraVM.setZoom(baseZoomLevel * scale)
                             }
                             .onEnded { _ in
                                 baseZoomLevel = cameraVM.zoomLevel

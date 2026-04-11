@@ -83,9 +83,9 @@ struct PhotoModeView: View {
                         cameraVM.focusAt(point: point)
                     })
                         .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
-                        .gesture(MagnifyGesture()
-                            .onChanged { value in
-                                cameraVM.setZoom(baseZoomLevel * value.magnification)
+                        .gesture(MagnificationGesture()
+                            .onChanged { scale in
+                                cameraVM.setZoom(baseZoomLevel * scale)
                             }
                             .onEnded { _ in
                                 baseZoomLevel = cameraVM.zoomLevel
