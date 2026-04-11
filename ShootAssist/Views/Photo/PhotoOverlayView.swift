@@ -72,7 +72,7 @@ struct PhotoOverlayView: View {
                 // MARK: - 光线状态徽标（左上角，所有模式可见）
                 if lightingResult.quality != .unknown && lightingResult.quality != .good {
                     LightingBadge(result: lightingResult)
-                        .position(x: 60, y: 52)
+                        .position(x: 60, y: geo.safeAreaInsets.top + 16)
                 }
 
                 // 四角取景框
@@ -95,7 +95,7 @@ struct PhotoOverlayView: View {
                     // 2. 匹配分数环 + 角度coaching（右上角）
                     if poseMatchScore > 0.01 {
                         PoseScoreRing(score: poseMatchScore, coachingTips: angleCoachingTips)
-                            .position(x: geo.size.width - 50, y: 80)
+                            .position(x: geo.size.width - 50, y: geo.safeAreaInsets.top + 40)
                     }
 
                     // 3. 对齐引导文字

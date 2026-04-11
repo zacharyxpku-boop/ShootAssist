@@ -110,7 +110,7 @@ class PoseCompletionService {
                 // Estimate shoulder spread from hip width or default 0.15
                 let spread: CGFloat
                 if let leftHip = get(.leftHip), let rightHip = get(.rightHip) {
-                    spread = abs(rightHip.x - leftHip.x) * 0.65 // shoulders ~65% of hip width on each side
+                    spread = abs(rightHip.x - leftHip.x) * 0.50 // shoulders ~50% of hip width per side (total ≈ hip width)
                 } else {
                     spread = 0.15
                 }

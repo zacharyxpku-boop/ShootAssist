@@ -23,8 +23,20 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # 9 关节索引: nose(0), L_sh(1), R_sh(2), L_el(3), R_el(4), L_wr(5), R_wr(6), L_hp(7), R_hp(8)
 # 坐标归一化: x ∈ [0,1], y ∈ [0,1], (0,0)=左上, (1,1)=右下
 
-def make_base_skeleton():
-    """生成标准站立骨架（归一化坐标）"""
+def make_base_skeleton(half_body=False):
+    """生成标准骨架。half_body=True 模拟半身照（人更大、hip 在画面底部附近）"""
+    if half_body:
+        return {
+            'nose':  (0.50, 0.20),
+            'L_sh':  (0.38, 0.38),
+            'R_sh':  (0.62, 0.38),
+            'L_el':  (0.30, 0.58),
+            'R_el':  (0.70, 0.58),
+            'L_wr':  (0.26, 0.75),
+            'R_wr':  (0.74, 0.75),
+            'L_hp':  (0.42, 0.85),
+            'R_hp':  (0.58, 0.85),
+        }
     return {
         'nose':  (0.50, 0.15),
         'L_sh':  (0.42, 0.28),
@@ -284,18 +296,34 @@ def pose_chin_rest_left(phase):
     return base
 
 
+def make_halfbody_variant(pose_fn):
+    """将全身姿势函数转为半身照变体（hip在画面底部，整体放大）"""
+    def halfbody_fn(phase):
+        skel = pose_fn(phase)
+        # 将全身坐标映射到半身照范围：垂直拉伸到 0.15-0.85，水平展宽
+        scaled = {}
+        for k, (x, y) in skel.items():
+            nx = 0.5 + (x - 0.5) * 1.3   # 水平放大 1.3x
+            ny = 0.15 + (y - 0.10) * 1.5  # 垂直拉伸，hip 推到 ~0.85
+            nx = max(0.02, min(0.98, nx))
+            ny = max(0.02, min(0.98, ny))
+            scaled[k] = (nx, ny)
+        return scaled
+    return halfbody_fn
+
+
 GESTURE_GENERATORS = {
-    'raise_both_hands': [pose_raise_both_hands, pose_raise_both_hands_v2],
-    'point_up':         [pose_point_up, pose_point_up_left],
-    'heart':            [pose_heart, pose_heart_small],
-    'clap':             [pose_clap],
-    'spread_arms':      [pose_spread_arms],
-    'fly_kiss':         [pose_fly_kiss],
-    'cover_face':       [pose_cover_face, pose_cover_face_single],
-    'hands_on_hips':    [pose_hands_on_hips],
-    'cross_arms':       [pose_cross_arms],
-    'chin_rest':        [pose_chin_rest, pose_chin_rest_left],
-    'neutral':          [pose_neutral, pose_neutral_walking, pose_neutral_phone],
+    'raise_both_hands': [pose_raise_both_hands, pose_raise_both_hands_v2, make_halfbody_variant(pose_raise_both_hands)],
+    'point_up':         [pose_point_up, pose_point_up_left, make_halfbody_variant(pose_point_up)],
+    'heart':            [pose_heart, pose_heart_small, make_halfbody_variant(pose_heart)],
+    'clap':             [pose_clap, make_halfbody_variant(pose_clap)],
+    'spread_arms':      [pose_spread_arms, make_halfbody_variant(pose_spread_arms)],
+    'fly_kiss':         [pose_fly_kiss, make_halfbody_variant(pose_fly_kiss)],
+    'cover_face':       [pose_cover_face, pose_cover_face_single, make_halfbody_variant(pose_cover_face)],
+    'hands_on_hips':    [pose_hands_on_hips, make_halfbody_variant(pose_hands_on_hips)],
+    'cross_arms':       [pose_cross_arms, make_halfbody_variant(pose_cross_arms)],
+    'chin_rest':        [pose_chin_rest, pose_chin_rest_left, make_halfbody_variant(pose_chin_rest)],
+    'neutral':          [pose_neutral, pose_neutral_walking, pose_neutral_phone, make_halfbody_variant(pose_neutral)],
 }
 
 
