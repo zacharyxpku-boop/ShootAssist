@@ -15,6 +15,8 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var totalPhotosSaved: Int = UserDefaults.standard.integer(forKey: "totalPhotosSaved")
     @Published var lastSavedImage: UIImage? = nil
     @Published var lastSavedVideoURL: URL? = nil
+    @Published var zoomLevel: CGFloat = 1.0
+    @Published var isFocusing = false
 
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
@@ -36,6 +38,7 @@ class CameraViewModel: NSObject, ObservableObject {
     /// Vision 分析开关：output 始终挂载，通过此 flag 在 delegate 中过滤
     var enableVisionAnalysis = true
     private var isConfigured = false
+    private var focusResetWorkItem: DispatchWorkItem?
 
     override init() { super.init() }
 
@@ -201,6 +204,7 @@ class CameraViewModel: NSObject, ObservableObject {
 
             DispatchQueue.main.async {
                 self.isFrontCamera = !currentlyFront
+                self.zoomLevel = 1.0
             }
         }
     }
@@ -256,6 +260,57 @@ class CameraViewModel: NSObject, ObservableObject {
         case .auto: return "bolt.badge.automatic.fill"
         @unknown default: return "bolt.slash.fill"
         }
+    }
+
+    // MARK: - 缩放
+
+    func setZoom(_ factor: CGFloat) {
+        guard let device = currentDevice else { return }
+        let maxZoom = min(device.maxAvailableVideoZoomFactor, 10.0)
+        let clamped = min(max(factor, 1.0), maxZoom)
+        do {
+            try device.lockForConfiguration()
+            device.videoZoomFactor = clamped
+            device.unlockForConfiguration()
+            DispatchQueue.main.async { self.zoomLevel = clamped }
+        } catch {}
+    }
+
+    // MARK: - 对焦
+
+    /// point 为归一化坐标 (0...1, 0...1)，由 preview layer 转换后传入
+    func focusAt(point: CGPoint) {
+        guard let device = currentDevice,
+              device.isFocusPointOfInterestSupported,
+              device.isExposurePointOfInterestSupported else { return }
+        do {
+            try device.lockForConfiguration()
+            device.focusPointOfInterest = point
+            device.focusMode = .autoFocus
+            device.exposurePointOfInterest = point
+            device.exposureMode = .autoExpose
+            device.unlockForConfiguration()
+            DispatchQueue.main.async { self.isFocusing = true }
+
+            // 2 秒后恢复连续自动对焦
+            focusResetWorkItem?.cancel()
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self, let device = self.currentDevice else { return }
+                do {
+                    try device.lockForConfiguration()
+                    if device.isFocusModeSupported(.continuousAutoFocus) {
+                        device.focusMode = .continuousAutoFocus
+                    }
+                    if device.isExposureModeSupported(.continuousAutoExposure) {
+                        device.exposureMode = .continuousAutoExposure
+                    }
+                    device.unlockForConfiguration()
+                } catch {}
+                DispatchQueue.main.async { self.isFocusing = false }
+            }
+            focusResetWorkItem = workItem
+            sessionQueue.asyncAfter(deadline: .now() + 2.0, execute: workItem)
+        } catch {}
     }
 
     // MARK: - 录像

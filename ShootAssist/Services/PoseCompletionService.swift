@@ -62,7 +62,8 @@ class PoseCompletionService {
         let completenessScore = Float(torsoAnchorFraction * 0.6 + totalObservedFraction * 0.4)
         
         // Determine canUseForMatching: needs ≥ 0.35 score AND at least one shoulder pair
-        let hasShoulderPair = rawJoints[.leftShoulder] != nil && rawJoints[.rightShoulder] != nil
+        // Accept shoulders from detection OR interpolation (neck+hip fallback)
+        let hasShoulderPair = interpolatedJoints[.leftShoulder] != nil && interpolatedJoints[.rightShoulder] != nil
         let canUseForMatching = completenessScore >= 0.35 && hasShoulderPair
         
         // Build reliability note
@@ -103,6 +104,25 @@ class PoseCompletionService {
             }
         }
         
+        // --- Shoulder estimation from neck + hips ---
+        if result[.leftShoulder] == nil || result[.rightShoulder] == nil {
+            if let neck = get(.neck) {
+                // Estimate shoulder spread from hip width or default 0.15
+                let spread: CGFloat
+                if let leftHip = get(.leftHip), let rightHip = get(.rightHip) {
+                    spread = abs(rightHip.x - leftHip.x) * 0.65 // shoulders ~65% of hip width on each side
+                } else {
+                    spread = 0.15
+                }
+                if result[.leftShoulder] == nil {
+                    setIfMissing(.leftShoulder, CGPoint(x: neck.x - spread, y: neck.y))
+                }
+                if result[.rightShoulder] == nil {
+                    setIfMissing(.rightShoulder, CGPoint(x: neck.x + spread, y: neck.y))
+                }
+            }
+        }
+
         // --- Root estimation ---
         if result[.root] == nil {
             if let leftShoulder = get(.leftShoulder),

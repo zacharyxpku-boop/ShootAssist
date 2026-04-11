@@ -229,6 +229,44 @@ class VisionService: NSObject, ObservableObject {
             return firstCompleted
         }
 
+        // Step 2.5: Upper-body ROI retry — crop to upper 60% if first pass found < 4 joints
+        if firstJoints.count < 4 {
+            let upperBodyBox = normalizedRect(x: 0, y: 0.4, width: 1.0, height: 0.6) // upper 60% (Vision y: 0=bottom)
+            if let upperCrop = cropCGImage(cgImage, to: upperBodyBox, size: uiImage.size) {
+                let upperHandler = VNImageRequestHandler(cgImage: upperCrop, orientation: orientation)
+                let upperPoseReq = VNDetectHumanBodyPoseRequest()
+                try? upperHandler.perform([upperPoseReq])
+                let upperJoints = upperPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
+                let remappedUpperJoints = remapJoints(upperJoints, fromCrop: upperBodyBox)
+
+                // Prefer whichever pass found more shoulder/arm joints
+                let upperBodyKeys: [VNHumanBodyPoseObservation.JointName] = [
+                    .leftShoulder, .rightShoulder, .leftElbow, .rightElbow, .leftWrist, .rightWrist
+                ]
+                let firstUpperCount = upperBodyKeys.filter { firstJoints[$0] != nil }.count
+                let roiUpperCount = upperBodyKeys.filter { remappedUpperJoints[$0] != nil }.count
+
+                if roiUpperCount > firstUpperCount {
+                    // Merge: ROI wins for upper body, first pass fills the rest
+                    var mergedROI: [VNHumanBodyPoseObservation.JointName: CGPoint] = firstJoints
+                    for (joint, pt) in remappedUpperJoints {
+                        mergedROI[joint] = pt
+                    }
+                    let roiCompleted = completionService.complete(
+                        mergedROI,
+                        boundingBox: nil,
+                        lastKnownJoints: [:],
+                        frameCount: 0,
+                        jointLastSeenFrame: [:],
+                        maxMissingFrames: 10
+                    )
+                    if roiCompleted.canUseForMatching {
+                        return roiCompleted
+                    }
+                }
+            }
+        }
+
         // Step 3: Second pass — crop & retry
         let personHandler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
         let personReq = VNDetectHumanRectanglesRequest()
@@ -332,9 +370,9 @@ class VisionService: NSObject, ObservableObject {
     // MARK: - 提取关键点（分关节置信度阈值，减少低置信度点引起的骨骼抖动）
     private static let jointConfidenceThresholds: [VNHumanBodyPoseObservation.JointName: Float] = [
         .nose: 0.5, .neck: 0.6,
-        .leftShoulder: 0.7, .rightShoulder: 0.7,
-        .leftElbow: 0.6,    .rightElbow: 0.6,
-        .leftWrist: 0.5,    .rightWrist: 0.5,
+        .leftShoulder: 0.35, .rightShoulder: 0.35,
+        .leftElbow: 0.3,    .rightElbow: 0.3,
+        .leftWrist: 0.25,    .rightWrist: 0.25,
         .leftHip: 0.2,      .rightHip: 0.2,   // lowered from 0.7
         .leftKnee: 0.15,    .rightKnee: 0.15, // lowered from 0.6
         .leftAnkle: 0.1,    .rightAnkle: 0.1, // lowered from 0.4

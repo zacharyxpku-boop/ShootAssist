@@ -6,6 +6,7 @@ struct VideoModeView: View {
     @StateObject private var cameraVM = CameraViewModel()
     @StateObject private var videoVM = VideoModeViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var baseZoomLevel: CGFloat = 1.0
     @State private var showPaywall = false
     @State private var showDemoPicker = false
     @State private var showShareVideo = false
@@ -53,7 +54,17 @@ struct VideoModeView: View {
 
                 // MARK: - 录像预览 + 辅助层
                 ZStack {
-                    CameraPreviewView(session: cameraVM.session)
+                    CameraPreviewView(session: cameraVM.session, onTapToFocus: { point in
+                        cameraVM.focusAt(point: point)
+                    })
+                        .gesture(MagnifyGesture()
+                            .onChanged { value in
+                                cameraVM.setZoom(baseZoomLevel * value.magnification)
+                            }
+                            .onEnded { _ in
+                                baseZoomLevel = cameraVM.zoomLevel
+                            }
+                        )
 
                     GeometryReader { geo in
                         ZStack {

@@ -6,20 +6,26 @@ import AVFoundation
 /// 无需手动 transform。保存的照片由 AVCapturePhotoOutput 输出正向数据，也无需额外处理。
 struct CameraPreviewView: UIViewRepresentable {
     let session: AVCaptureSession
+    /// 点击回调：返回归一化坐标 (0...1)，用于对焦
+    var onTapToFocus: ((CGPoint) -> Void)?
 
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
         view.previewLayer.session = session
         view.previewLayer.videoGravity = .resizeAspectFill
+        view.onTapToFocus = onTapToFocus
         return view
     }
 
     func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
         uiView.previewLayer.session = session
+        uiView.onTapToFocus = onTapToFocus
     }
 }
 
 class CameraPreviewUIView: UIView {
+    var onTapToFocus: ((CGPoint) -> Void)?
+
     override class var layerClass: AnyClass {
         AVCaptureVideoPreviewLayer.self
     }
@@ -33,5 +39,12 @@ class CameraPreviewUIView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         previewLayer.frame = bounds
+    }
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard let touch = touches.first else { return }
+        let location = touch.location(in: self)
+        let devicePoint = previewLayer.captureDevicePointConverted(fromLayerPoint: location)
+        onTapToFocus?(devicePoint)
     }
 }

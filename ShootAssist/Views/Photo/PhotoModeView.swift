@@ -17,6 +17,7 @@ struct PhotoModeView: View {
     @State private var comparisonImage: UIImage? = nil
     @State private var showPoseGuide = false         // Pose 引导面板
     @State private var activePose: PoseData? = nil   // 当前选中的 Pose 引导
+    @State private var baseZoomLevel: CGFloat = 1.0  // 缩放手势起始基准
 
     var body: some View {
         ZStack {
@@ -78,8 +79,18 @@ struct PhotoModeView: View {
 
                 // MARK: - 相机预览 + 辅助叠加层
                 ZStack {
-                    CameraPreviewView(session: cameraVM.session)
+                    CameraPreviewView(session: cameraVM.session, onTapToFocus: { point in
+                        cameraVM.focusAt(point: point)
+                    })
                         .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
+                        .gesture(MagnifyGesture()
+                            .onChanged { value in
+                                cameraVM.setZoom(baseZoomLevel * value.magnification)
+                            }
+                            .onEnded { _ in
+                                baseZoomLevel = cameraVM.zoomLevel
+                            }
+                        )
 
                     // Pose 引导悬浮卡（选中 Pose 后显示在左上角）
                     if let pose = activePose {
