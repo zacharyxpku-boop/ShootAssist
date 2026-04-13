@@ -64,7 +64,8 @@ class PoseCompletionService {
         // Determine canUseForMatching: needs ≥ 0.35 score AND at least one shoulder pair
         // Accept shoulders from detection OR interpolation (neck+hip fallback)
         let hasShoulderPair = interpolatedJoints[.leftShoulder] != nil && interpolatedJoints[.rightShoulder] != nil
-        let canUseForMatching = completenessScore >= 0.35 && hasShoulderPair
+        // 降到 0.2：只要有头+一个肩膀的半身照也能用
+        let canUseForMatching = completenessScore >= 0.20 && hasShoulderPair
         
         // Build reliability note
         var reliabilityNote: String?
@@ -120,6 +121,51 @@ class PoseCompletionService {
                 if result[.rightShoulder] == nil {
                     setIfMissing(.rightShoulder, CGPoint(x: neck.x + spread, y: neck.y))
                 }
+            }
+        }
+
+        // --- Elbow estimation from shoulder + wrist, or default hanging position ---
+        if result[.leftElbow] == nil {
+            if let ls = result[.leftShoulder], let lw = result[.leftWrist] {
+                setIfMissing(.leftElbow, CGPoint(x: (ls.x + lw.x) / 2, y: (ls.y + lw.y) / 2))
+            } else if let ls = result[.leftShoulder] {
+                // Default: arm hanging at 45 degrees
+                let armLen: CGFloat = 0.08
+                setIfMissing(.leftElbow, CGPoint(x: ls.x - armLen * 0.5, y: ls.y - armLen))
+            }
+        }
+        if result[.rightElbow] == nil {
+            if let rs = result[.rightShoulder], let rw = result[.rightWrist] {
+                setIfMissing(.rightElbow, CGPoint(x: (rs.x + rw.x) / 2, y: (rs.y + rw.y) / 2))
+            } else if let rs = result[.rightShoulder] {
+                let armLen: CGFloat = 0.08
+                setIfMissing(.rightElbow, CGPoint(x: rs.x + armLen * 0.5, y: rs.y - armLen))
+            }
+        }
+
+        // --- Wrist estimation from shoulder + elbow extrapolation ---
+        if result[.leftWrist] == nil {
+            if let ls = result[.leftShoulder], let le = result[.leftElbow] {
+                // Extrapolate: wrist = elbow + (elbow - shoulder) * 0.9
+                let dx = le.x - ls.x
+                let dy = le.y - ls.y
+                setIfMissing(.leftWrist, CGPoint(x: le.x + dx * 0.9, y: le.y + dy * 0.9))
+            }
+        }
+        if result[.rightWrist] == nil {
+            if let rs = result[.rightShoulder], let re = result[.rightElbow] {
+                let dx = re.x - rs.x
+                let dy = re.y - rs.y
+                setIfMissing(.rightWrist, CGPoint(x: re.x + dx * 0.9, y: re.y + dy * 0.9))
+            }
+        }
+
+        // --- Neck estimation from shoulders or nose ---
+        if result[.neck] == nil {
+            if let ls = result[.leftShoulder], let rs = result[.rightShoulder] {
+                setIfMissing(.neck, CGPoint(x: (ls.x + rs.x) / 2, y: (ls.y + rs.y) / 2 + 0.03))
+            } else if let nose = result[.nose], let ls = result[.leftShoulder] {
+                setIfMissing(.neck, CGPoint(x: (nose.x + ls.x) / 2, y: (nose.y + ls.y) / 2))
             }
         }
 
