@@ -20,13 +20,14 @@ from pathlib import Path
 
 # Config
 NUM_CLASSES = 11
-NUM_FRAMES = 13       # x3d_s default
-CROP_SIZE = 182       # x3d_s default
-SAMPLING_RATE = 6
-BATCH_SIZE = 2        # minimal batch for CPU training
-EPOCHS = 20
+NUM_FRAMES = 4        # x3d_xs: only 4 frames (much lighter than x3d_s's 13)
+CROP_SIZE = 160       # min viable for x3d_xs pooling kernel (4,5,5)
+SAMPLING_RATE = 12
+BATCH_SIZE = 2
+EPOCHS = 15
 LR_HEAD = 1e-2
 LR_BACKBONE = 1e-4
+MODEL_NAME = 'x3d_xs'  # xs=0.91 GFLOPs vs s=2.96 GFLOPs
 
 BASE_DIR = Path(__file__).parent
 MODEL_DIR = BASE_DIR / 'models'
@@ -222,7 +223,7 @@ def collect_samples():
 
 def build_model(num_classes=NUM_CLASSES, freeze_backbone=True):
     """Load X3D-S and replace classification head."""
-    model = torch.hub.load('facebookresearch/pytorchvideo', 'x3d_s', pretrained=True)
+    model = torch.hub.load('facebookresearch/pytorchvideo', MODEL_NAME, pretrained=True)
 
     # Replace final projection: 2048 -> num_classes
     model.blocks[5].proj = nn.Linear(2048, num_classes)
