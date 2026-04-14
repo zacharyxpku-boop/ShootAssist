@@ -191,7 +191,7 @@ struct PhotoModeView: View {
                 // ✅ 锁定 3:4 宽高比，与苹果原相机照片模式完全一致
                 // 传感器原始输出为横向 4:3，竖屏 portrait 下为 3:4（宽:高）
                 // 加约束后 .resizeAspectFill 刚好填满容器，零裁剪零畸变
-                .aspectRatio(3/4, contentMode: .fit)
+                .aspectRatio(3.0/4.0, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 2)
 
