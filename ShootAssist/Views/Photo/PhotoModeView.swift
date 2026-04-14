@@ -82,8 +82,8 @@ struct PhotoModeView: View {
                     CameraPreviewView(session: cameraVM.session, onTapToFocus: { point in
                         cameraVM.focusAt(point: point)
                     })
-                        // 4:3 宽高比 = 相机传感器原始比例，防止容器挤压导致裁切过多
-                        .aspectRatio(3.0/4.0, contentMode: .fit)
+                        // 用 session 实际宽高比（前后摄可能不同），防止画面拉伸
+                        .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
                         .clipped()
                         .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
                         .gesture(MagnificationGesture()
@@ -188,10 +188,8 @@ struct PhotoModeView: View {
                         Color.white.opacity(0.85).ignoresSafeArea().transition(.opacity)
                     }
                 }
-                // ✅ 锁定 3:4 宽高比，与苹果原相机照片模式完全一致
-                // 传感器原始输出为横向 4:3，竖屏 portrait 下为 3:4（宽:高）
-                // 加约束后 .resizeAspectFill 刚好填满容器，零裁剪零畸变
-                .aspectRatio(3.0/4.0, contentMode: .fit)
+                // 用 session 实际宽高比，前后摄 activeFormat 可能不同
+                .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 2)
 

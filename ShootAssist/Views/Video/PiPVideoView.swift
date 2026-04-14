@@ -6,18 +6,32 @@ import AVFoundation
 struct PiPVideoView: UIViewRepresentable {
     let url: URL
     let isPlaying: Bool
+    /// 每次值变化都会把视频 seek 到 0 + 重新播放（用于录制开始时从头同步）
+    let restartToken: Int
 
     func makeUIView(context: Context) -> PiPPlayerUIView {
         let view = PiPPlayerUIView(url: url)
+        context.coordinator.lastToken = restartToken
         return view
     }
 
     func updateUIView(_ uiView: PiPPlayerUIView, context: Context) {
+        if restartToken != context.coordinator.lastToken {
+            context.coordinator.lastToken = restartToken
+            uiView.restartFromBeginning()
+            return
+        }
         if isPlaying {
             uiView.play()
         } else {
             uiView.pause()
         }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    class Coordinator {
+        var lastToken: Int = -1
     }
 }
 
@@ -59,6 +73,14 @@ class PiPPlayerUIView: UIView {
         player?.pause()
     }
 
+    /// 跳到开头并从头播放（录制开始时调用，确保跟参考视频同步）
+    func restartFromBeginning() {
+        player?.pause()
+        player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            self?.player?.play()
+        }
+    }
+
     func setMuted(_ muted: Bool) {
         player?.isMuted = muted
     }
@@ -69,15 +91,15 @@ struct DraggablePiPView: View {
     let url: URL
     let screenSize: CGSize
     @Binding var isPlaying: Bool
+    let restartToken: Int
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
 
-    // 小窗尺寸 = 屏幕的 1/3 宽度（面积约 1/9）
     private var pipWidth: CGFloat { screenSize.width / 3 }
     private var pipHeight: CGFloat { pipWidth * 16 / 9 }
 
     var body: some View {
-        PiPVideoView(url: url, isPlaying: isPlaying)
+        PiPVideoView(url: url, isPlaying: isPlaying, restartToken: restartToken)
             .frame(width: pipWidth, height: pipHeight)
             .cornerRadius(8)
             .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)

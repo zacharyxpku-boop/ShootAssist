@@ -17,6 +17,9 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var lastSavedVideoURL: URL? = nil
     @Published var zoomLevel: CGFloat = 1.0
     @Published var isFocusing = false
+    /// 当前摄像头实际宽高比（portrait，width/height），SwiftUI 用此值约束预览容器
+    /// 防止前后摄像头 activeFormat 不同导致的画面拉伸变形
+    @Published var previewAspectRatio: CGFloat = 3.0 / 4.0
 
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
@@ -46,6 +49,22 @@ class CameraViewModel: NSObject, ObservableObject {
             if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
         } else {
             if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+        }
+    }
+
+    /// 从当前设备的 activeFormat 计算真实的 portrait 宽高比 = 短边/长边
+    /// 每次 session 配置完或切换摄像头后都要调，防止容器与实际视频比例不符导致预览拉伸
+    private func updatePreviewAspectRatio() {
+        guard let device = currentDevice else { return }
+        let desc = device.activeFormat.formatDescription
+        let dims = CMVideoFormatDescriptionGetDimensions(desc)
+        // activeFormat 给的是横向分辨率（width > height），portrait 时要交换
+        let w = CGFloat(min(dims.width, dims.height))
+        let h = CGFloat(max(dims.width, dims.height))
+        guard h > 0 else { return }
+        let ratio = w / h  // 例：1080/1920 = 0.5625
+        DispatchQueue.main.async { [weak self] in
+            self?.previewAspectRatio = ratio
         }
     }
 
@@ -99,8 +118,19 @@ class CameraViewModel: NSObject, ObservableObject {
             for input  in self.session.inputs  { self.session.removeInput(input) }
             for output in self.session.outputs { self.session.removeOutput(output) }
 
-            let preset: AVCaptureSession.Preset = self.isVideoMode ? .high : .photo
-            if self.session.canSetSessionPreset(preset) { self.session.sessionPreset = preset }
+            // 视频模式优先用 1080p 固定 preset，防止 .high 在不同设备上回退到 720p 甚至更低
+            // 造成"导出视频被压缩成很小"的现象
+            if self.isVideoMode {
+                if self.session.canSetSessionPreset(.hd1920x1080) {
+                    self.session.sessionPreset = .hd1920x1080
+                } else if self.session.canSetSessionPreset(.hd1280x720) {
+                    self.session.sessionPreset = .hd1280x720
+                } else {
+                    self.session.sessionPreset = .high
+                }
+            } else {
+                if self.session.canSetSessionPreset(.photo) { self.session.sessionPreset = .photo }
+            }
 
             // 视频输入
             guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
@@ -158,6 +188,9 @@ class CameraViewModel: NSObject, ObservableObject {
             self.session.startRunning()
             self.isConfigured = true
 
+            // 计算并发布实际宽高比（关键：防前后摄 activeFormat 不同导致拉伸）
+            self.updatePreviewAspectRatio()
+
             DispatchQueue.main.async {
                 self.isSessionRunning = true
                 self.isFrontCamera = false
@@ -190,6 +223,15 @@ class CameraViewModel: NSObject, ObservableObject {
             }
             self.session.addInput(newInput)
             self.currentDevice = newDevice
+
+            // 切换设备后重新协商 preset：前后摄对 1080p 的支持可能不同
+            if self.isVideoMode {
+                if self.session.canSetSessionPreset(.hd1920x1080) {
+                    self.session.sessionPreset = .hd1920x1080
+                } else if self.session.canSetSessionPreset(.hd1280x720) {
+                    self.session.sessionPreset = .hd1280x720
+                }
+            }
             // ✅ 在 sessionQueue 中同步更新 visionService，确保新摄像头首帧前 isFrontCamera 已就绪
             self.visionService.isFrontCamera = !currentlyFront
             self.session.commitConfiguration()
@@ -210,6 +252,9 @@ class CameraViewModel: NSObject, ObservableObject {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
+
+            // 切换后重新发布实际宽高比（前/后摄 activeFormat 可能不同）
+            self.updatePreviewAspectRatio()
 
             DispatchQueue.main.async {
                 self.isFrontCamera = !currentlyFront

@@ -82,7 +82,8 @@ struct VideoModeView: View {
                                 DraggablePiPView(
                                     url: url,
                                     screenSize: geo.size,
-                                    isPlaying: $videoVM.isPiPPlaying
+                                    isPlaying: $videoVM.isPiPPlaying,
+                                    restartToken: videoVM.pipRestartToken
                                 )
                                 .position(
                                     x: geo.size.width / 6 + 8,
@@ -126,7 +127,8 @@ struct VideoModeView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                .aspectRatio(9.0/16.0, contentMode: .fit)
+                // 关键：使用 session 实际的宽高比（前后摄不同）防止画面拉伸
+                .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
                 .clipped()
                 .padding(.horizontal, 0)
 
@@ -150,9 +152,12 @@ struct VideoModeView: View {
                         } else if videoVM.isCountingDown {
                             videoVM.cancelCountdown()
                         } else {
+                            // 倒计时开始时暂停 PiP 预览，正式开录时一起从头播
+                            videoVM.stopPiPPlayback()
                             videoVM.startCountdown {
                                 cameraVM.startRecording()
-                                videoVM.startPiPPlayback()
+                                // 在相机录制真正开始的瞬间同步 PiP，seek(0)+play
+                                videoVM.startPiPPlaybackSynced()
                             }
                         }
                     }

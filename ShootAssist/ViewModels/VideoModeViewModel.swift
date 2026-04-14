@@ -13,6 +13,8 @@ class VideoModeViewModel: ObservableObject {
     @Published var referenceVideoURL: URL?
     @Published var isPiPPlaying: Bool = false
     @Published var showVideoPicker = false
+    /// 每次递增都会让 PiP 跳到 0 重新播放（录制真正开始时调用）
+    @Published var pipRestartToken: Int = 0
 
     // MARK: - 对口型歌词（预设）
     @Published var selectedSong: SongLyrics = lyricDatabase[0]
@@ -57,6 +59,7 @@ class VideoModeViewModel: ObservableObject {
 
     func importReferenceVideo(url: URL) {
         referenceVideoURL = url
+        // 导入后先预览播放一下让用户看到内容
         isPiPPlaying = true
     }
 
@@ -65,9 +68,11 @@ class VideoModeViewModel: ObservableObject {
         referenceVideoURL = nil
     }
 
-    /// 录制开始时自动播放参考视频
-    func startPiPPlayback() {
-        if referenceVideoURL != nil { isPiPPlaying = true }
+    /// 正式录制开始的瞬间调用 — seek 到 0 + 从头播放，保证和相机录制同步
+    func startPiPPlaybackSynced() {
+        guard referenceVideoURL != nil else { return }
+        isPiPPlaying = true
+        pipRestartToken += 1  // 递增 token 让 PiPVideoView 执行 seek(.zero)+play
     }
 
     /// 录制停止时暂停参考视频
