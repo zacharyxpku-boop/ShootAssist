@@ -66,10 +66,11 @@ final class GestureClassifierService {
         "neutral":          (nil,   ""),
     ]
 
-    // 标签顺序 — 与 ml/models/label_map.json 严格一致（7个实际训练类别）
+    // 标签顺序 — 与 ml/models/label_map.json 严格一致（11个类别）
     private static let orderedLabels: [String] = [
         "raise_both_hands", "point_up", "heart", "clap",
-        "spread_arms", "cover_face", "chin_rest",
+        "spread_arms", "fly_kiss", "cover_face",
+        "hands_on_hips", "cross_arms", "chin_rest", "neutral",
     ]
 
     // 标准化参数 — 从 ml/models/scaler_params.json 同步（由 train.py 生成）

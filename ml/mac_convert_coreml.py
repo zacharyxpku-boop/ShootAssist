@@ -18,16 +18,59 @@ from pathlib import Path
 
 MODEL_DIR = Path(__file__).parent / "models"
 ONNX_PATH = MODEL_DIR / "GestureClassifier.onnx"
+MOBILENET_ONNX = MODEL_DIR / "MobileNet_Gesture.onnx"
 H5_PATH   = MODEL_DIR / "gesture_lstm.h5"
 LABEL_MAP = MODEL_DIR / "label_map.json"
+MOBILENET_LABEL_MAP = MODEL_DIR / "mobilenet_label_map.json"
 OUTPUT    = MODEL_DIR / "GestureClassifier.mlpackage"
+MOBILENET_OUTPUT = MODEL_DIR / "MobileNetGesture.mlpackage"
 
 SEQ_LEN  = 15
 FEAT_DIM = 18
+MN_FRAMES = 4
+MN_CROP = 96
 
 
 def main():
     import coremltools as ct
+    # Convert MobileNet ONNX (primary model, 98.5% accuracy)
+    convert_mobilenet(ct)
+    # Also convert LSTM ONNX as fallback
+    convert_lstm(ct)
+
+
+def convert_mobilenet(ct):
+    if not MOBILENET_ONNX.exists():
+        print(f"  [SKIP] MobileNet ONNX not found: {MOBILENET_ONNX}")
+        return
+
+    label_path = MOBILENET_LABEL_MAP if MOBILENET_LABEL_MAP.exists() else LABEL_MAP
+    with open(label_path, "r", encoding="utf-8") as f:
+        label_map = {int(k): v for k, v in json.load(f).items()}
+    labels = [label_map[i] for i in sorted(label_map.keys())]
+    print(f"MobileNet labels ({len(labels)}): {labels}")
+
+    try:
+        mlmodel = ct.convert(
+            str(MOBILENET_ONNX),
+            inputs=[ct.TensorType(name="video", shape=(1, MN_FRAMES, 3, MN_CROP, MN_CROP))],
+            outputs=[ct.TensorType(name="gesture")],
+            convert_to="mlprogram",
+            minimum_deployment_target=ct.target.iOS15,
+        )
+        mlmodel.short_description = f"ShootAssist MobileNet gesture classifier ({len(labels)} classes, 98.5%)"
+        mlmodel.save(str(MOBILENET_OUTPUT))
+        print(f"[OK] {MOBILENET_OUTPUT}")
+    except Exception as e:
+        print(f"[FAIL] MobileNet conversion: {e}")
+
+    swift = gen_swift(labels)
+    swift_path = MODEL_DIR / "GestureLabels.swift"
+    swift_path.write_text(swift, encoding="utf-8")
+    print(f"[OK] {swift_path}")
+
+
+def convert_lstm(ct):
 
     with open(LABEL_MAP, "r", encoding="utf-8") as f:
         label_map = {int(k): v for k, v in json.load(f).items()}
