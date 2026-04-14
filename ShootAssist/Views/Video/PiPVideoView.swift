@@ -12,10 +12,16 @@ struct PiPVideoView: UIViewRepresentable {
     func makeUIView(context: Context) -> PiPPlayerUIView {
         let view = PiPPlayerUIView(url: url)
         context.coordinator.lastToken = restartToken
+        context.coordinator.lastURL = url
         return view
     }
 
     func updateUIView(_ uiView: PiPPlayerUIView, context: Context) {
+        // URL 变了（用户换了参考视频）→ 重建 player，不能只改 isPlaying
+        if url != context.coordinator.lastURL {
+            context.coordinator.lastURL = url
+            uiView.replaceSource(url: url)
+        }
         if restartToken != context.coordinator.lastToken {
             context.coordinator.lastToken = restartToken
             uiView.restartFromBeginning()
@@ -32,6 +38,7 @@ struct PiPVideoView: UIViewRepresentable {
 
     class Coordinator {
         var lastToken: Int = -1
+        var lastURL: URL?
     }
 }
 
@@ -48,25 +55,39 @@ class PiPPlayerUIView: UIView {
         layer.cornerRadius = 8
         clipsToBounds = true
 
-        let item = AVPlayerItem(url: url)
-        let p = AVPlayer(playerItem: item)
-        p.actionAtItemEnd = .none  // 不要自动 pause 在末尾
+        let p = AVPlayer()
+        p.actionAtItemEnd = .none
         p.isMuted = true
-        playerItem = item
         player = p
 
-        // 播放到末尾时手动回到 0
+        let pLayer = AVPlayerLayer(player: p)
+        // .resizeAspect 保证不裁切参考视频内容（横屏竖屏都完整显示，留黑边）
+        pLayer.videoGravity = .resizeAspect
+        layer.addSublayer(pLayer)
+        playerLayer = pLayer
+
+        replaceSource(url: url)
+    }
+
+    /// 替换播放源（用户换参考视频时调用）
+    func replaceSource(url: URL) {
+        // 先移除旧 item 的 notification observer
+        if let oldItem = playerItem {
+            NotificationCenter.default.removeObserver(
+                self,
+                name: .AVPlayerItemDidPlayToEndTime,
+                object: oldItem
+            )
+        }
+        let item = AVPlayerItem(url: url)
+        playerItem = item
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(itemDidReachEnd),
             name: .AVPlayerItemDidPlayToEndTime,
             object: item
         )
-
-        let pLayer = AVPlayerLayer(player: p)
-        pLayer.videoGravity = .resizeAspectFill
-        layer.addSublayer(pLayer)
-        playerLayer = pLayer
+        player?.replaceCurrentItem(with: item)
     }
 
     required init?(coder: NSCoder) { fatalError() }
