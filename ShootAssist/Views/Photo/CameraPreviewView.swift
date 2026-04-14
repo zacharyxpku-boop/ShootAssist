@@ -12,9 +12,9 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
         view.previewLayer.session = session
-        // .resizeAspect 保证不裁切不拉伸（与苹果原相机一致）
-        // 多余区域由外层黑色背景填充
-        view.previewLayer.videoGravity = .resizeAspect
+        // .resizeAspectFill = 等比缩放填满容器，裁切超出部分（苹果原相机行为）
+        // 不会拉伸变形。如果用户觉得"变长"，是容器比例问题，不是这里。
+        view.previewLayer.videoGravity = .resizeAspectFill
         view.backgroundColor = .black
         view.onTapToFocus = onTapToFocus
         return view
