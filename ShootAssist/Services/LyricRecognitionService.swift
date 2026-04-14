@@ -28,25 +28,31 @@ class LyricRecognitionService {
         request.shouldReportPartialResults = false
 
         return await withCheckedContinuation { cont in
+            // 用串行队列保护 resumed 标志，防止 speech callback 和 timeout 同时 resume
+            let guard_q = DispatchQueue(label: "lyric.cont.guard")
             var resumed = false
 
             let task = recognizer.recognitionTask(with: request) { result, error in
-                guard !resumed else { return }
-                if let result, result.isFinal {
-                    resumed = true
-                    cont.resume(returning: Self.segmentsToLines(result.bestTranscription.segments))
-                } else if error != nil {
-                    resumed = true
-                    cont.resume(returning: [])
+                guard_q.sync {
+                    guard !resumed else { return }
+                    if let result, result.isFinal {
+                        resumed = true
+                        cont.resume(returning: Self.segmentsToLines(result.bestTranscription.segments))
+                    } else if error != nil {
+                        resumed = true
+                        cont.resume(returning: [])
+                    }
                 }
             }
 
-            // 90s 超时兜底：Speech API 不保证回调，弱网 / 服务无响应会永久挂起
+            // 90s 超时兜底
             DispatchQueue.main.asyncAfter(deadline: .now() + 90) {
-                guard !resumed else { return }
-                task.cancel()
-                resumed = true
-                cont.resume(returning: [])
+                guard_q.sync {
+                    guard !resumed else { return }
+                    task.cancel()
+                    resumed = true
+                    cont.resume(returning: [])
+                }
             }
         }
     }
@@ -89,11 +95,12 @@ class LyricRecognitionService {
         var i = 0
         while i < segments.count {
             let chunk = Array(segments[i ..< min(i + chunkSize, segments.count)])
+            guard let first = chunk.first, let last = chunk.last else { i += chunkSize; continue }
             let text  = chunk.map { $0.substring }.joined() + " ♪"
-            let start = chunk.first!.timestamp
+            let start = first.timestamp
             let end: TimeInterval = (i + chunkSize < segments.count)
                 ? segments[i + chunkSize].timestamp
-                : chunk.last!.timestamp + chunk.last!.duration + 0.8
+                : last.timestamp + last.duration + 0.8
             lines.append(LyricLine(text: text, startTime: start, endTime: end))
             i += chunkSize
         }

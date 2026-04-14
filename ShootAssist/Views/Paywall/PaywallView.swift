@@ -117,28 +117,13 @@ struct PaywallView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
 
-                        // MARK: 社交证明 + 免费试用提示
+                        // MARK: 免费试用提示
                         VStack(spacing: 6) {
-                            // 社交证明
                             HStack(spacing: 6) {
-                                Text("👥")
+                                Text("✨")
                                     .font(.system(size: 13))
-                                Text("已有 8,000+ 摄影爱好者在用")
+                                Text("解锁全部姿势库 + 无限拍同款")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(Color(hex: "8B6E75"))
-                            }
-
-                            // 本月升级人数（真实来自本地埋点，保底显示合理数值）
-                            let upgradeCount = max(
-                                Analytics.getStats()[Analytics.Event.subscriptionPurchased] ?? 0,
-                                127
-                            )
-                            HStack(spacing: 4) {
-                                Image(systemName: "arrow.up.circle.fill")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(Color(hex: "FF85A1"))
-                                Text("本月已有 \(upgradeCount) 人升级 Pro")
-                                    .font(.system(size: 11))
                                     .foregroundColor(Color(hex: "8B6E75"))
                             }
                         }

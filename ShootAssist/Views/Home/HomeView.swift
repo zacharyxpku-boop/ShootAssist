@@ -414,7 +414,7 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
-                    Text("把邀请码发给朋友，让 TA 下载 ShootAssist 时填入，一起拍出好看的照片")
+                    Text("把邀请码发给朋友，让 TA 下载小白快门时填入，一起拍出好看的照片")
                         .font(.system(size: 12))
                         .foregroundColor(.midBerryBrown)
                         .lineSpacing(3)
@@ -428,7 +428,7 @@ struct SettingsView: View {
                         Text("版本")
                             .foregroundColor(.berryBrown)
                         Spacer()
-                        Text("1.0.0")
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
                             .foregroundColor(.midBerryBrown)
                     }
                 } header: {
