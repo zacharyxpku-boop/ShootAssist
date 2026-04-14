@@ -20,6 +20,9 @@ class CameraViewModel: NSObject, ObservableObject {
     /// 当前摄像头实际宽高比（portrait，width/height），SwiftUI 用此值约束预览容器
     /// 防止前后摄像头 activeFormat 不同导致的画面拉伸变形
     @Published var previewAspectRatio: CGFloat = 3.0 / 4.0
+    /// movieOutput 真正开始写文件的瞬间递增 — View 层监听此 token 触发 PiP seek(0)+play
+    /// 修复"PiP 提前播"：cameraVM.startRecording() 是异步派发，返回后文件还没开始写
+    @Published var recordingStartToken: Int = 0
 
     let session = AVCaptureSession()
     private var photoOutput = AVCapturePhotoOutput()
@@ -505,6 +508,19 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
 // MARK: - Video Recording Delegate
 
 extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
+    /// 相机真正开始写文件的瞬间触发 — 不是 startRecording() 方法调用返回时
+    /// View 层监听 recordingStartToken 在此时同步 PiP 参考视频
+    func fileOutput(_ output: AVCaptureFileOutput,
+                    didStartRecordingTo fileURL: URL,
+                    from connections: [AVCaptureConnection]) {
+        DispatchQueue.main.async { [weak self] in
+            self?.recordingStartToken += 1
+            if let preset = self?.session.sessionPreset {
+                print("[VideoRecording] didStart writing, preset=\(preset.rawValue)")
+            }
+        }
+    }
+
     func fileOutput(_ output: AVCaptureFileOutput,
                     didFinishRecordingTo outputFileURL: URL,
                     from connections: [AVCaptureConnection], error: Error?) {

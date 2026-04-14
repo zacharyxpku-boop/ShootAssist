@@ -127,10 +127,10 @@ struct VideoModeView: View {
                             .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
-                // 关键：使用 session 实际的宽高比（前后摄不同）防止画面拉伸
-                .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
+                // 放弃 aspectRatio 约束，让 ZStack 填满 VStack 剩余空间
+                // CameraPreviewView 内部用 .resizeAspectFill 保持比例 + 铺满（和系统相机 Reels 一致）
+                // 之前 aspectRatio 约束在嵌套 VStack 里会导致 SwiftUI 分配异常 frame，预览被拉伸
                 .clipped()
-                .padding(.horizontal, 0)
 
                 // MARK: - 底部操作栏（精简）
                 HStack {
@@ -152,12 +152,12 @@ struct VideoModeView: View {
                         } else if videoVM.isCountingDown {
                             videoVM.cancelCountdown()
                         } else {
-                            // 倒计时开始时暂停 PiP 预览，正式开录时一起从头播
+                            // 倒计时开始时暂停 PiP 预览
+                            // 不在这里调 startPiPPlaybackSynced — startRecording 是异步的
+                            // 真正开录的瞬间由 onChange(recordingStartToken) 触发 PiP 同步
                             videoVM.stopPiPPlayback()
                             videoVM.startCountdown {
                                 cameraVM.startRecording()
-                                // 在相机录制真正开始的瞬间同步 PiP，seek(0)+play
-                                videoVM.startPiPPlaybackSynced()
                             }
                         }
                     }
@@ -214,6 +214,10 @@ struct VideoModeView: View {
             shareVideoURL = url
             isPreparingShare = false
             showShareVideo = true
+        }
+        // movieOutput 真正开始写文件的瞬间才同步 PiP — 消除 startRecording() 异步派发引起的时差
+        .onChange(of: cameraVM.recordingStartToken) { _ in
+            videoVM.startPiPPlaybackSynced()
         }
     }
 
