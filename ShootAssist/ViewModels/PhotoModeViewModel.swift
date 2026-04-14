@@ -47,9 +47,13 @@ class PhotoModeViewModel: ObservableObject {
 
     // MARK: - 拍同款：参考图 + Pose 分析
     @Published var referenceImage: UIImage? {
-        didSet { referenceImageVersion += 1 }  // 修复 #14：UIImage 不是 Equatable，用 version 触发 onChange
+        didSet {
+            referenceImageVersion += 1
+            didRecordCurrentMatch = false  // 换图后重置，允许记录新匹配
+        }
     }
     @Published var referenceImageVersion: Int = 0
+    private var didRecordCurrentMatch = false
     @Published var showImagePicker = false
     @Published var isShootingPhase: Bool = false   // false=设置阶段, true=拍摄阶段
     @Published var referenceJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
@@ -144,9 +148,9 @@ class PhotoModeViewModel: ObservableObject {
                             self.angleCoachingTips = []
                         }
 
-                        // 匹配成功 → 记录进阶
-                        if self.poseMatchResult.isMatched {
-                            // 用 referenceImage 对应的 poseName (如果有)
+                        // 匹配成功 → 记录进阶（只记一次，防止每帧刷 UserDefaults）
+                        if self.poseMatchResult.isMatched && !self.didRecordCurrentMatch {
+                            self.didRecordCurrentMatch = true
                             self.progressionService.recordCompletion(
                                 poseName: "clone_\(self.referenceImageVersion)",
                                 matchScore: self.poseMatchResult.score

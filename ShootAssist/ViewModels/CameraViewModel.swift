@@ -232,11 +232,11 @@ class CameraViewModel: NSObject, ObservableObject {
         if let device = currentDevice, device.hasFlash {
             settings.flashMode = flashMode
         }
-        DispatchQueue.main.async {
-            self.showFlash = true
+        DispatchQueue.main.async { [weak self] in
+            self?.showFlash = true
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                withAnimation(.easeOut(duration: 0.3)) { self.showFlash = false }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
+                withAnimation(.easeOut(duration: 0.3)) { self?.showFlash = false }
             }
         }
         photoOutput.capturePhoto(with: settings, delegate: self)
@@ -268,12 +268,15 @@ class CameraViewModel: NSObject, ObservableObject {
         guard let device = currentDevice else { return }
         let maxZoom = min(device.maxAvailableVideoZoomFactor, 10.0)
         let clamped = min(max(factor, 1.0), maxZoom)
-        do {
-            try device.lockForConfiguration()
-            device.videoZoomFactor = clamped
-            device.unlockForConfiguration()
-            DispatchQueue.main.async { self.zoomLevel = clamped }
-        } catch {}
+        // Dispatch to sessionQueue to avoid blocking main thread on lockForConfiguration
+        sessionQueue.async { [weak self] in
+            do {
+                try device.lockForConfiguration()
+                device.videoZoomFactor = clamped
+                device.unlockForConfiguration()
+                DispatchQueue.main.async { self?.zoomLevel = clamped }
+            } catch {}
+        }
     }
 
     // MARK: - 对焦
@@ -342,8 +345,11 @@ class CameraViewModel: NSObject, ObservableObject {
     func stopSession() {
         if isRecording { stopRecording() }
         sessionQueue.async { [weak self] in
-            self?.session.stopRunning()
-            DispatchQueue.main.async { self?.isSessionRunning = false }
+            guard let self else { return }
+            // Nil delegate BEFORE stopping to prevent frames arriving during teardown
+            self.videoDataOutput.setSampleBufferDelegate(nil, queue: nil)
+            self.session.stopRunning()
+            DispatchQueue.main.async { [weak self] in self?.isSessionRunning = false }
         }
     }
 
@@ -419,7 +425,7 @@ class CameraViewModel: NSObject, ObservableObject {
 extension CameraViewModel: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput,
                      didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        DispatchQueue.main.async { self.isCapturingPhoto = false }
+        DispatchQueue.main.async { [weak self] in self?.isCapturingPhoto = false }
         guard error == nil, let data = photo.fileDataRepresentation() else { return }
         savePhotoToLibrary(data: data)
     }
