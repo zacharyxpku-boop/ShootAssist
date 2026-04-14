@@ -28,15 +28,6 @@ workflows:
         script: |
           brew install xcodegen
 
-      - name: Convert ML model to CoreML
-        script: |
-          cd $CM_BUILD_DIR
-          pip3 install tensorflow coremltools tf2onnx onnx -q
-          python3 ml/mac_convert_coreml.py
-          # Copy model + scaler into Xcode Resources
-          cp ml/models/GestureClassifier.mlpackage ShootAssist/Resources/
-          cp ml/models/scaler_params.json ShootAssist/Resources/
-
       - name: Generate Xcode project
         script: |
           cd $CM_BUILD_DIR
@@ -126,14 +117,6 @@ workflows:
     scripts:
       - name: Install XcodeGen
         script: brew install xcodegen
-
-      - name: Convert ML model to CoreML
-        script: |
-          cd $CM_BUILD_DIR
-          pip3 install tensorflow coremltools tf2onnx onnx -q
-          python3 ml/mac_convert_coreml.py
-          cp ml/models/GestureClassifier.mlpackage ShootAssist/Resources/
-          cp ml/models/scaler_params.json ShootAssist/Resources/
 
       - name: Generate Xcode project
         script: |

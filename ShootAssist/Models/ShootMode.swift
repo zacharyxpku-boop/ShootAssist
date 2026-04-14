@@ -9,14 +9,6 @@ enum PhotoSubMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-// MARK: - 视频子模式
-enum VideoSubMode: String, CaseIterable, Identifiable {
-    case videoTemplate = "跟拍手势舞"
-    case lipSync       = "对口型"
-
-    var id: String { rawValue }
-}
-
 // MARK: - 延时选项
 enum DelayOption: Int, CaseIterable {
     case none  = 0
