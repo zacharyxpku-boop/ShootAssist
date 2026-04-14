@@ -137,7 +137,7 @@ class VideoWatermarkService {
         textLayer.fontSize    = 12
         textLayer.foregroundColor = UIColor.white.withAlphaComponent(0.9).cgColor
         textLayer.alignmentMode   = .center
-        textLayer.contentsScale   = UIScreen.main.scale
+        textLayer.contentsScale   = 3.0  // Retina 3x, avoids deprecated UIScreen.main
 
         layer.addSublayer(bgLayer)
         layer.addSublayer(textLayer)

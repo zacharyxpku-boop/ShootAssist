@@ -23,11 +23,17 @@ class PhotoModeViewModel: ObservableObject {
         let today = Self.todayString()
         if storedDate != today { storedDate = today; storedCount = 0 }
         storedCount += 1
+        // 同时记录累计使用次数（不可被日期篡改重置）
+        let totalKey = "sa_clone_total"
+        let total = UserDefaults.standard.integer(forKey: totalKey)
+        UserDefaults.standard.set(total + 1, forKey: totalKey)
     }
 
-    /// 是否已达免费上限
+    /// 是否已达免费上限（累计上限 500 次 防日期篡改无限用）
     func isFreeLimitReached(isPro: Bool) -> Bool {
         guard !isPro else { return false }
+        let totalUsed = UserDefaults.standard.integer(forKey: "sa_clone_total")
+        if totalUsed >= 500 { return true }  // 累计硬上限
         return freeUsesRemaining <= 0
     }
 

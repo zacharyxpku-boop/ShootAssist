@@ -38,7 +38,15 @@ final class SubscriptionManager: ObservableObject {
             products = fetched.sorted { $0.price < $1.price }
             // 若未找到产品（沙盒无 StoreKit 配置），products 保持空，UI 显示 loading
         } catch {
-            // 网络或配置问题：静默失败，用户看到 loading 动画
+            print("[StoreKit] loadProducts failed: \(error.localizedDescription)")
+            // 3 秒后自动重试一次
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            do {
+                let fetched = try await Product.products(for: productIDs)
+                products = fetched.sorted { $0.price < $1.price }
+            } catch {
+                print("[StoreKit] retry also failed: \(error.localizedDescription)")
+            }
         }
     }
 

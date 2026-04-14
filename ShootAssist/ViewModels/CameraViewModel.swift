@@ -40,6 +40,15 @@ class CameraViewModel: NSObject, ObservableObject {
     private var isConfigured = false
     private var focusResetWorkItem: DispatchWorkItem?
 
+    /// 设置 connection 为竖屏方向（兼容 iOS 16 和 iOS 17+）
+    private func setPortraitOrientation(_ conn: AVCaptureConnection) {
+        if #available(iOS 17.0, *) {
+            if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
+        } else {
+            if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+        }
+    }
+
     override init() { super.init() }
 
     deinit { recordingTimer?.invalidate() }
@@ -132,15 +141,15 @@ class CameraViewModel: NSObject, ObservableObject {
 
             // videoOrientation 确保 sampleBuffer 以竖屏方向传给 Vision（默认可能是横向传感器朝向）
             if let conn = self.videoDataOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
             }
             // movieOutput connection 同步设置竖屏方向，防止初始录制方向错乱
             if let conn = self.movieOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
             }
             // ✅ photoOutput 补设 videoOrientation，避免拍出的照片方向元数据错误
             if let conn = self.photoOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
                 // 初始后置摄像头不镜像；切换前置后由 switchCamera 更新
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
@@ -188,17 +197,17 @@ class CameraViewModel: NSObject, ObservableObject {
             // 切换后重新固定 videoOrientation 及镜像（commitConfiguration 后 connection 仍存在）
             let isFront = !currentlyFront
             if let conn = self.videoDataOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
             // movieOutput connection 也需同步更新，否则前摄录制视频方向/镜像错乱
             if let conn = self.movieOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
             // ✅ photoOutput 同步镜像状态：前置拍照保存非镜像（与苹果原相机一致）
             if let conn = self.photoOutput.connection(with: .video) {
-                if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+                self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
 

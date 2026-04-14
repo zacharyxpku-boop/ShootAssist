@@ -274,24 +274,6 @@ private struct SmallPoseCard: View {
     }
 }
 
-// MARK: - 照片卡片（保留，供"更多拍照功能"入口使用）
-private struct PhotoCardContent: View {
-    var body: some View {
-        HStack(spacing: 14) {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(LinearGradient(colors: [.sakuraPink, .peachPink], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 46, height: 46)
-                .overlay(Text("📷").font(.system(size: 22)))
-            VStack(alignment: .leading, spacing: 3) {
-                Text("拍照").font(.system(size: 15, weight: .bold)).foregroundColor(.berryBrown)
-                Text("AI构图 · 机位提示").font(.system(size: 10)).foregroundColor(.paleRose)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 16).padding(.vertical, 14)
-    }
-}
-
 // MARK: - Pro 状态胶囊
 private struct ProBadgePill: View {
     let label: String
@@ -317,25 +299,6 @@ private struct ProBadgePill: View {
     }
 }
 
-
-// MARK: - 页面指示器
-private struct PageIndicator: View {
-    let currentPage: Int
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(0..<3, id: \.self) { index in
-                if index == currentPage {
-                    Capsule()
-                        .fill(LinearGradient(colors: [.rosePink, .peachPink], startPoint: .leading, endPoint: .trailing))
-                        .frame(width: 20, height: 6)
-                } else {
-                    Circle().fill(Color.sakuraPink).frame(width: 6, height: 6)
-                }
-            }
-        }
-    }
-}
 
 // MARK: - 设置页（含邀请码）
 

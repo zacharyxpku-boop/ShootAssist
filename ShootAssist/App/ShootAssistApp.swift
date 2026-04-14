@@ -10,7 +10,11 @@ struct ShootAssistApp: App {
             HomeView()
                 .preferredColorScheme(.light)
                 .environmentObject(subManager)
-                .onAppear { Analytics.track(Analytics.Event.appOpened) }
+                .onAppear {
+                    Analytics.track(Analytics.Event.appOpened)
+                    // 清理上次 session 残留的临时文件
+                    Self.cleanTempFiles()
+                }
                 .fullScreenCover(isPresented: Binding(
                     get: { !hasSeenOnboarding },
                     set: { _ in }
@@ -22,6 +26,20 @@ struct ShootAssistApp: App {
                         }
                     ))
                 }
+        }
+    }
+
+    /// 清理 tmp 目录中 sa_ 前缀的残留文件（视频/音频/水印缓存）
+    private static func cleanTempFiles() {
+        DispatchQueue.global(qos: .utility).async {
+            let tmp = FileManager.default.temporaryDirectory
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: tmp, includingPropertiesForKeys: [.creationDateKey]
+            ) else { return }
+            let prefixes = ["sa_video_", "sa_audio_", "sa_wm_", "sa_lyric_clip_", "sa_import_"]
+            for file in files where prefixes.contains(where: { file.lastPathComponent.hasPrefix($0) }) {
+                try? FileManager.default.removeItem(at: file)
+            }
         }
     }
 }
