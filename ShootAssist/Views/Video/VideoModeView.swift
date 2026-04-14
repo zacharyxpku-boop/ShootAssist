@@ -187,11 +187,10 @@ struct VideoModeView: View {
         .sheet(isPresented: $videoVM.showVideoPicker) {
             VideoPicker { asset in
                 videoVM.showVideoPicker = false
-                // 获取视频 URL
+                guard let asset else { return }
                 if let urlAsset = asset as? AVURLAsset {
                     videoVM.importReferenceVideo(url: urlAsset.url)
                 } else {
-                    // 如果不是 URL asset，导出到临时文件
                     Task {
                         if let url = await Self.exportAssetToTemp(asset) {
                             await MainActor.run { videoVM.importReferenceVideo(url: url) }
@@ -215,6 +214,7 @@ struct VideoModeView: View {
 
     // MARK: - 辅助
 
+    @MainActor
     private static func exportAssetToTemp(_ asset: AVAsset) async -> URL? {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sa_ref_\(Int(Date().timeIntervalSince1970)).mp4")

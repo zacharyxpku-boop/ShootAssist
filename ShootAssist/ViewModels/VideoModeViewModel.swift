@@ -128,7 +128,7 @@ class VideoModeViewModel: ObservableObject {
 
     /// 从视频中提取音频（原 VideoAnalysisService.extractAudio 移入此处）
     private static func extractAudio(from asset: AVAsset) async -> URL? {
-        guard let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first else { return nil }
+        guard (try? await asset.loadTracks(withMediaType: .audio).first) != nil else { return nil }
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sa_audio_\(Int(Date().timeIntervalSince1970)).m4a")
         try? FileManager.default.removeItem(at: outputURL)
