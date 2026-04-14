@@ -286,14 +286,17 @@ class CameraViewModel: NSObject, ObservableObject {
         guard let device = currentDevice,
               device.isFocusPointOfInterestSupported,
               device.isExposurePointOfInterestSupported else { return }
-        do {
-            try device.lockForConfiguration()
-            device.focusPointOfInterest = point
-            device.focusMode = .autoFocus
-            device.exposurePointOfInterest = point
-            device.exposureMode = .autoExpose
-            device.unlockForConfiguration()
-            DispatchQueue.main.async { self.isFocusing = true }
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            do {
+                try device.lockForConfiguration()
+                device.focusPointOfInterest = point
+                device.focusMode = .autoFocus
+                device.exposurePointOfInterest = point
+                device.exposureMode = .autoExpose
+                device.unlockForConfiguration()
+                DispatchQueue.main.async { [weak self] in self?.isFocusing = true }
+            } catch { return }
 
             // 2 秒后恢复连续自动对焦
             focusResetWorkItem?.cancel()
@@ -311,9 +314,9 @@ class CameraViewModel: NSObject, ObservableObject {
                 } catch {}
                 DispatchQueue.main.async { self.isFocusing = false }
             }
-            focusResetWorkItem = workItem
-            sessionQueue.asyncAfter(deadline: .now() + 2.0, execute: workItem)
-        } catch {}
+            self.focusResetWorkItem = workItem
+            self.sessionQueue.asyncAfter(deadline: .now() + 2.0, execute: workItem)
+        }  // sessionQueue.async
     }
 
     // MARK: - 录像
@@ -437,6 +440,11 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput,
                     didFinishRecordingTo outputFileURL: URL,
                     from connections: [AVCaptureConnection], error: Error?) {
+        // 检查录制错误（app 进入后台/存储满/权限中断都会触发）
+        if let error = error {
+            print("[VideoRecording] error: \(error.localizedDescription)")
+            // 即使报错，部分文件可能已写入，仍尝试保存（iOS 行为）
+        }
         if FileManager.default.fileExists(atPath: outputFileURL.path) {
             saveVideoToLibrary(url: outputFileURL)
         }

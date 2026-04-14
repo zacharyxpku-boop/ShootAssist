@@ -49,7 +49,8 @@ class PhotoModeViewModel: ObservableObject {
     @Published var referenceImage: UIImage? {
         didSet {
             referenceImageVersion += 1
-            didRecordCurrentMatch = false  // 换图后重置，允许记录新匹配
+            didRecordCurrentMatch = false
+            if referenceImage == nil { isShootingPhase = false }
         }
     }
     @Published var referenceImageVersion: Int = 0

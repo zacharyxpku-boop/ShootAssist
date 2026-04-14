@@ -276,7 +276,7 @@ private struct LightingBadge: View {
 
     private var icon: String {
         switch result.quality {
-        case .backlit: return "sun.max.trianglebadge.exclamationmark"
+        case .backlit: return "sun.max.fill"  // iOS 16 safe (trianglebadge requires iOS 17)
         case .harshSide: return "sun.haze"
         case .tooDark: return "moon"
         case .tooBright: return "sun.max.fill"
