@@ -36,8 +36,10 @@ struct PiPVideoView: UIViewRepresentable {
 }
 
 class PiPPlayerUIView: UIView {
-    private var player: AVQueuePlayer?
-    private var looper: AVPlayerLooper?
+    // 不用 AVPlayerLooper（seek/pause 时和内部 queue 有竞态）
+    // 改用普通 AVPlayer + 手动监听 didPlayToEnd 重置到 0
+    private var player: AVPlayer?
+    private var playerItem: AVPlayerItem?
     private var playerLayer: AVPlayerLayer?
 
     init(url: URL) {
@@ -47,12 +49,21 @@ class PiPPlayerUIView: UIView {
         clipsToBounds = true
 
         let item = AVPlayerItem(url: url)
-        let queuePlayer = AVQueuePlayer(items: [item])
-        looper = AVPlayerLooper(player: queuePlayer, templateItem: AVPlayerItem(url: url))
-        player = queuePlayer
-        queuePlayer.isMuted = true  // 默认静音，不干扰录制
+        let p = AVPlayer(playerItem: item)
+        p.actionAtItemEnd = .none  // 不要自动 pause 在末尾
+        p.isMuted = true
+        playerItem = item
+        player = p
 
-        let pLayer = AVPlayerLayer(player: queuePlayer)
+        // 播放到末尾时手动回到 0
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(itemDidReachEnd),
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: item
+        )
+
+        let pLayer = AVPlayerLayer(player: p)
         pLayer.videoGravity = .resizeAspectFill
         layer.addSublayer(pLayer)
         playerLayer = pLayer
@@ -60,9 +71,19 @@ class PiPPlayerUIView: UIView {
 
     required init?(coder: NSCoder) { fatalError() }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         playerLayer?.frame = bounds
+    }
+
+    @objc private func itemDidReachEnd(_ notification: Notification) {
+        player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+            self?.player?.play()
+        }
     }
 
     func play() {
@@ -76,7 +97,8 @@ class PiPPlayerUIView: UIView {
     /// 跳到开头并从头播放（录制开始时调用，确保跟参考视频同步）
     func restartFromBeginning() {
         player?.pause()
-        player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
+        player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
+            guard finished else { return }
             self?.player?.play()
         }
     }

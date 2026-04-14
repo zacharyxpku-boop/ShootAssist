@@ -52,17 +52,31 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
 
-    /// 从当前设备的 activeFormat 计算真实的 portrait 宽高比 = 短边/长边
-    /// 每次 session 配置完或切换摄像头后都要调，防止容器与实际视频比例不符导致预览拉伸
+    /// 根据 sessionPreset 返回 portrait 宽高比 (短边/长边)
+    /// 关键：activeFormat 给的是 sensor native 格式，不是 session 实际输出；
+    /// 实际输出取决于 sessionPreset，所以按 preset 推导才准。
     private func updatePreviewAspectRatio() {
-        guard let device = currentDevice else { return }
-        let desc = device.activeFormat.formatDescription
-        let dims = CMVideoFormatDescriptionGetDimensions(desc)
-        // activeFormat 给的是横向分辨率（width > height），portrait 时要交换
-        let w = CGFloat(min(dims.width, dims.height))
-        let h = CGFloat(max(dims.width, dims.height))
-        guard h > 0 else { return }
-        let ratio = w / h  // 例：1080/1920 = 0.5625
+        let ratio: CGFloat
+        switch session.sessionPreset {
+        case .photo:
+            ratio = 3.0 / 4.0   // .photo = 4:3 landscape → 3:4 portrait
+        case .hd1920x1080, .hd1280x720, .hd4K3840x2160, .iFrame1280x720, .iFrame960x540:
+            ratio = 9.0 / 16.0  // 16:9 landscape → 9:16 portrait
+        case .vga640x480, .cif352x288:
+            ratio = 3.0 / 4.0   // 4:3 legacy
+        case .high, .medium, .low:
+            // .high/.medium/.low 不确定，fallback 到 activeFormat 读
+            if let device = currentDevice {
+                let dims = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+                let w = CGFloat(min(dims.width, dims.height))
+                let h = CGFloat(max(dims.width, dims.height))
+                ratio = h > 0 ? w / h : 3.0 / 4.0
+            } else {
+                ratio = 3.0 / 4.0
+            }
+        default:
+            ratio = 3.0 / 4.0
+        }
         DispatchQueue.main.async { [weak self] in
             self?.previewAspectRatio = ratio
         }
@@ -118,8 +132,18 @@ class CameraViewModel: NSObject, ObservableObject {
             for input  in self.session.inputs  { self.session.removeInput(input) }
             for output in self.session.outputs { self.session.removeOutput(output) }
 
+            // 视频输入（preset 必须在 input 加入后才能准确判断 canSet）
+            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+                  let input  = try? AVCaptureDeviceInput(device: camera) else {
+                self.session.commitConfiguration(); return
+            }
+            if self.session.canAddInput(input) {
+                self.session.addInput(input)
+                self.currentDevice = camera
+            }
+
             // 视频模式优先用 1080p 固定 preset，防止 .high 在不同设备上回退到 720p 甚至更低
-            // 造成"导出视频被压缩成很小"的现象
+            // 关键：必须在 addInput 之后调用 canSetSessionPreset，否则返回不准确
             if self.isVideoMode {
                 if self.session.canSetSessionPreset(.hd1920x1080) {
                     self.session.sessionPreset = .hd1920x1080
@@ -130,16 +154,6 @@ class CameraViewModel: NSObject, ObservableObject {
                 }
             } else {
                 if self.session.canSetSessionPreset(.photo) { self.session.sessionPreset = .photo }
-            }
-
-            // 视频输入
-            guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-                  let input  = try? AVCaptureDeviceInput(device: camera) else {
-                self.session.commitConfiguration(); return
-            }
-            if self.session.canAddInput(input) {
-                self.session.addInput(input)
-                self.currentDevice = camera
             }
 
             // 麦克风（视频模式）

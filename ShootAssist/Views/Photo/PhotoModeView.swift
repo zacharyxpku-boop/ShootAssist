@@ -82,9 +82,7 @@ struct PhotoModeView: View {
                     CameraPreviewView(session: cameraVM.session, onTapToFocus: { point in
                         cameraVM.focusAt(point: point)
                     })
-                        // 用 session 实际宽高比（前后摄可能不同），防止画面拉伸
-                        .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
-                        .clipped()
+                        // 内层不加 aspectRatio，由外层 ZStack 统一约束，避免嵌套 fit 缩小画面
                         .opacity(photoVM.currentSubMode == .influencerClone && !photoVM.isShootingPhase ? 0.4 : 1)
                         .gesture(MagnificationGesture()
                             .onChanged { scale in
