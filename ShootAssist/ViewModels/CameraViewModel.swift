@@ -13,8 +13,6 @@ class CameraViewModel: NSObject, ObservableObject {
     @Published var saveErrorMessage = ""
     @Published var sessionPhotosSaved = 0
     @Published var totalPhotosSaved: Int = UserDefaults.standard.integer(forKey: "totalPhotosSaved")
-    @Published var lastSavedImage: UIImage? = nil
-    @Published var lastSavedVideoURL: URL? = nil
     @Published var zoomLevel: CGFloat = 1.0
     @Published var isFocusing = false
     /// 当前摄像头实际宽高比（portrait，width/height），SwiftUI 用此值约束预览容器
@@ -397,6 +395,8 @@ class CameraViewModel: NSObject, ObservableObject {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sa_video_\(Int(Date().timeIntervalSince1970)).mov")
         tempVideoURL = fileURL
+        // 主线程 capture @Published isFrontCamera，避免 sessionQueue 里读主线程状态的数据竞争
+        let isFront = isFrontCamera
 
         // 所有 movieOutput 配置和启动必须在 sessionQueue 上执行，避免和 session 配置竞态
         // 同时在这里 refresh 一次 videoRotationAngle/videoOrientation —
@@ -407,7 +407,7 @@ class CameraViewModel: NSObject, ObservableObject {
             if let conn = self.movieOutput.connection(with: .video) {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported {
-                    conn.isVideoMirrored = self.isFrontCamera
+                    conn.isVideoMirrored = isFront
                 }
             }
             self.movieOutput.startRecording(to: fileURL, recordingDelegate: self)
@@ -464,7 +464,6 @@ class CameraViewModel: NSObject, ObservableObject {
                         let newTotal = UserDefaults.standard.integer(forKey: "totalPhotosSaved") + 1
                         UserDefaults.standard.set(newTotal, forKey: "totalPhotosSaved")
                         self?.totalPhotosSaved = newTotal
-                        if let img = UIImage(data: data) { self?.lastSavedImage = img }
                         Analytics.track(Analytics.Event.photoSaved)
                     } else {
                         self?.saveErrorMessage = "照片保存失败，请稍后重试"
@@ -492,7 +491,6 @@ class CameraViewModel: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     if success {
                         self?.showToast = true
-                        self?.lastSavedVideoURL = url
                     } else {
                         self?.saveErrorMessage = "视频保存失败，请稍后重试"
                         self?.showSaveError = true

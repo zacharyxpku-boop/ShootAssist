@@ -94,7 +94,7 @@ struct HomeView: View {
                 case .photo:
                     PhotoModeView()
                 case .video:
-                    VideoModeView().environmentObject(subManager)
+                    VideoModeView()
                 case .poseLibrary:
                     PoseLibraryView()
                 }

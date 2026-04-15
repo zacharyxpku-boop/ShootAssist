@@ -2,12 +2,10 @@ import SwiftUI
 import AVFoundation
 
 struct VideoModeView: View {
-    @EnvironmentObject var subManager: SubscriptionManager
     @StateObject private var cameraVM = CameraViewModel()
     @StateObject private var videoVM = VideoModeViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var baseZoomLevel: CGFloat = 1.0
-    @State private var showPaywall = false
 
     var body: some View {
         ZStack {
