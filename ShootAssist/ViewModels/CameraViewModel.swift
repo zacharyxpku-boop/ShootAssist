@@ -397,7 +397,21 @@ class CameraViewModel: NSObject, ObservableObject {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("sa_video_\(Int(Date().timeIntervalSince1970)).mov")
         tempVideoURL = fileURL
-        movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+
+        // 所有 movieOutput 配置和启动必须在 sessionQueue 上执行，避免和 session 配置竞态
+        // 同时在这里 refresh 一次 videoRotationAngle/videoOrientation —
+        // 之前在 setupSession 里 commitConfiguration 之前设过一次，但某些机型在 session 运行后
+        // connection 会回退到默认（landscape right），导致导出视频变横向
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            if let conn = self.movieOutput.connection(with: .video) {
+                self.setPortraitOrientation(conn)
+                if conn.isVideoMirroringSupported {
+                    conn.isVideoMirrored = self.isFrontCamera
+                }
+            }
+            self.movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+        }
 
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
