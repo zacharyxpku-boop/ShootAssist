@@ -17,14 +17,16 @@ struct PiPVideoView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: PiPPlayerUIView, context: Context) {
-        // URL 变了（用户换了参考视频）→ 重建 player，不能只改 isPlaying
         if url != context.coordinator.lastURL {
             context.coordinator.lastURL = url
             uiView.replaceSource(url: url)
         }
         if restartToken != context.coordinator.lastToken {
             context.coordinator.lastToken = restartToken
-            uiView.restartFromBeginning()
+            // isPlaying 决定 restart 后是否继续播放
+            // 导入时 token++ 但 isPlaying=false → seek 到 0 静止显示第一帧
+            // 开录时 token++ 且 isPlaying=true → seek 到 0 后继续播放
+            uiView.seekToZero(thenPlay: isPlaying)
             return
         }
         if isPlaying {
@@ -117,10 +119,16 @@ class PiPPlayerUIView: UIView {
 
     /// 跳到开头并从头播放（录制开始时调用，确保跟参考视频同步）
     func restartFromBeginning() {
+        seekToZero(thenPlay: true)
+    }
+
+    /// 跳到开头，按 thenPlay 决定是否继续播放
+    /// thenPlay=false 用于导入后静止在第一帧显示，不自动播
+    func seekToZero(thenPlay: Bool) {
         player?.pause()
         player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
             guard finished else { return }
-            self?.player?.play()
+            if thenPlay { self?.player?.play() }
         }
     }
 

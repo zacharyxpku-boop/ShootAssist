@@ -59,8 +59,9 @@ class VideoModeViewModel: ObservableObject {
 
     func importReferenceVideo(url: URL) {
         referenceVideoURL = url
-        // 导入后先预览播放一下让用户看到内容
-        isPiPPlaying = true
+        // 导入后停在第一帧：用户需要点开始拍摄才播放，保证和相机录制同步起拍
+        isPiPPlaying = false
+        pipRestartToken += 1  // 触发 PiPView 重置到 0，显示第一帧作为封面
     }
 
     func clearReferenceVideo() {

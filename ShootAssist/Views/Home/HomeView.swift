@@ -92,22 +92,25 @@ struct HomeView: View {
             .navigationDestination(isPresented: $navigateToPoseLibrary) {
                 PoseLibraryView()
             }
+            // 齿轮 overlay 必须挂在 NavigationStack 内部，push 到子页面时才会被覆盖
+            // 之前挂在 NavigationStack 外面，导致子页面进入后仍然悬浮在最顶层，
+            // 和 PhotoModeView 的"←返回"按钮物理重叠在左上角
+            .overlay(alignment: .topLeading) {
+                Button(action: { showSettings = true }) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.midBerryBrown.opacity(0.7))
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("设置")
+                .padding(.top, 50).padding(.leading, 4)
+            }
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView().environmentObject(subManager)
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
-        }
-        .overlay(alignment: .topLeading) {
-            Button(action: { showSettings = true }) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.midBerryBrown.opacity(0.7))
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("设置")
-            .padding(.top, 50).padding(.leading, 4)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { logoOffset = 4 }
