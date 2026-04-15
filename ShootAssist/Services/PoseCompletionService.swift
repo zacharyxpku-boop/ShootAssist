@@ -187,7 +187,7 @@ class PoseCompletionService {
                       let rightShoulder = get(.rightShoulder) {
                 // Shoulder width as proxy
                 let shoulderWidth = abs(rightShoulder.x - leftShoulder.x)
-                let torsoHeight = shoulderWidth * 1.3
+                let torsoHeight = shoulderWidth * 1.5
                 let shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
                 let rootY = shoulderMidY - torsoHeight
                 let rootX = (leftShoulder.x + rightShoulder.x) / 2
@@ -201,7 +201,7 @@ class PoseCompletionService {
                let rightShoulder = get(.rightShoulder),
                let root = get(.root) {
                 let shoulderWidth = abs(rightShoulder.x - leftShoulder.x)
-                let torsoHeight = shoulderWidth * 1.3
+                let torsoHeight = shoulderWidth * 1.5
                 let shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2
                 let shoulderMidY = (leftShoulder.y + rightShoulder.y) / 2
                 let hipY = shoulderMidY - torsoHeight
@@ -215,39 +215,45 @@ class PoseCompletionService {
             }
         }
         
-        // --- Knee estimation ---
+        // --- Knee estimation (anatomically correct) ---
+        // 用肩宽做基准：大腿长 ≈ 1.8× 肩宽（达芬奇人体比例）
+        // 旧代码用 hipWidth × 1.15 = 约 0.9× 肩宽，导致腿短如侏儒
         if result[.leftKnee] == nil || result[.rightKnee] == nil {
-            if let leftHip = get(.leftHip),
-               let rightHip = get(.rightHip) {
-                let hipWidth = abs(rightHip.x - leftHip.x)
-                let thighLength = hipWidth * 1.15
-                let leftHipY = leftHip.y
-                let rightHipY = rightHip.y
-                
-                if result[.leftKnee] == nil {
-                    setIfMissing(.leftKnee, CGPoint(x: leftHip.x, y: leftHipY - thighLength))
-                }
-                if result[.rightKnee] == nil {
-                    setIfMissing(.rightKnee, CGPoint(x: rightHip.x, y: rightHipY - thighLength))
-                }
+            // 肩宽优先（最准）；无肩宽回退到 hipWidth × 2.3 近似还原肩宽
+            let thighLength: CGFloat
+            if let ls = result[.leftShoulder], let rs = result[.rightShoulder] {
+                thighLength = abs(rs.x - ls.x) * 1.8
+            } else if let lh = result[.leftHip], let rh = result[.rightHip] {
+                thighLength = abs(rh.x - lh.x) * 2.3
+            } else {
+                thighLength = 0.22  // 归一化兜底值
+            }
+
+            if let leftHip = get(.leftHip), result[.leftKnee] == nil {
+                setIfMissing(.leftKnee, CGPoint(x: leftHip.x, y: leftHip.y - thighLength))
+            }
+            if let rightHip = get(.rightHip), result[.rightKnee] == nil {
+                setIfMissing(.rightKnee, CGPoint(x: rightHip.x, y: rightHip.y - thighLength))
             }
         }
-        
-        // --- Ankle estimation ---
+
+        // --- Ankle estimation (anatomically correct) ---
+        // 小腿长 ≈ 1.6× 肩宽，略短于大腿
         if result[.leftAnkle] == nil || result[.rightAnkle] == nil {
-            if let leftKnee = get(.leftKnee),
-               let rightKnee = get(.rightKnee) {
-                let kneeWidth = abs(rightKnee.x - leftKnee.x)
-                let shinLength = kneeWidth * 0.95
-                let leftKneeY = leftKnee.y
-                let rightKneeY = rightKnee.y
-                
-                if result[.leftAnkle] == nil {
-                    setIfMissing(.leftAnkle, CGPoint(x: leftKnee.x, y: leftKneeY - shinLength))
-                }
-                if result[.rightAnkle] == nil {
-                    setIfMissing(.rightAnkle, CGPoint(x: rightKnee.x, y: rightKneeY - shinLength))
-                }
+            let shinLength: CGFloat
+            if let ls = result[.leftShoulder], let rs = result[.rightShoulder] {
+                shinLength = abs(rs.x - ls.x) * 1.6
+            } else if let lh = result[.leftHip], let rh = result[.rightHip] {
+                shinLength = abs(rh.x - lh.x) * 2.0
+            } else {
+                shinLength = 0.20
+            }
+
+            if let leftKnee = get(.leftKnee), result[.leftAnkle] == nil {
+                setIfMissing(.leftAnkle, CGPoint(x: leftKnee.x, y: leftKnee.y - shinLength))
+            }
+            if let rightKnee = get(.rightKnee), result[.rightAnkle] == nil {
+                setIfMissing(.rightAnkle, CGPoint(x: rightKnee.x, y: rightKnee.y - shinLength))
             }
         }
         
