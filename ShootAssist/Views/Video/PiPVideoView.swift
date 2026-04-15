@@ -8,9 +8,13 @@ struct PiPVideoView: UIViewRepresentable {
     let isPlaying: Bool
     /// 每次值变化都会把视频 seek 到 0 + 重新播放（用于录制开始时从头同步）
     let restartToken: Int
+    /// 是否解除参考视频自带音轨的静音 — 录制开始时为 true，
+    /// 让用户跟着原始音乐节奏跳舞；导入静止预览阶段为 false
+    let audioEnabled: Bool
 
     func makeUIView(context: Context) -> PiPPlayerUIView {
         let view = PiPPlayerUIView(url: url)
+        view.setMuted(!audioEnabled)
         context.coordinator.lastToken = restartToken
         context.coordinator.lastURL = url
         return view
@@ -21,6 +25,8 @@ struct PiPVideoView: UIViewRepresentable {
             context.coordinator.lastURL = url
             uiView.replaceSource(url: url)
         }
+        // 每次刷新都同步静音状态，audioEnabled 切换瞬间生效
+        uiView.setMuted(!audioEnabled)
         if restartToken != context.coordinator.lastToken {
             context.coordinator.lastToken = restartToken
             // isPlaying 决定 restart 后是否继续播放
@@ -59,6 +65,8 @@ class PiPPlayerUIView: UIView {
 
         let p = AVPlayer()
         p.actionAtItemEnd = .none
+        // 默认静音；调用方通过 setMuted(_:) 控制
+        // PiPVideoView.makeUIView 会在创建后立即按 audioEnabled 设置一次
         p.isMuted = true
         player = p
 
@@ -143,6 +151,7 @@ struct DraggablePiPView: View {
     let screenSize: CGSize
     @Binding var isPlaying: Bool
     let restartToken: Int
+    let audioEnabled: Bool
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
 
@@ -150,7 +159,7 @@ struct DraggablePiPView: View {
     private var pipHeight: CGFloat { pipWidth * 16 / 9 }
 
     var body: some View {
-        PiPVideoView(url: url, isPlaying: isPlaying, restartToken: restartToken)
+        PiPVideoView(url: url, isPlaying: isPlaying, restartToken: restartToken, audioEnabled: audioEnabled)
             .frame(width: pipWidth, height: pipHeight)
             .cornerRadius(8)
             .shadow(color: .black.opacity(0.5), radius: 4, x: 0, y: 2)

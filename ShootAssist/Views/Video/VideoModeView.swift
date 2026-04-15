@@ -8,9 +8,6 @@ struct VideoModeView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var baseZoomLevel: CGFloat = 1.0
     @State private var showPaywall = false
-    @State private var showShareVideo = false
-    @State private var shareVideoURL: URL? = nil
-    @State private var isPreparingShare = false
 
     var body: some View {
         ZStack {
@@ -83,7 +80,8 @@ struct VideoModeView: View {
                                     url: url,
                                     screenSize: geo.size,
                                     isPlaying: $videoVM.isPiPPlaying,
-                                    restartToken: videoVM.pipRestartToken
+                                    restartToken: videoVM.pipRestartToken,
+                                    audioEnabled: videoVM.pipAudioEnabled
                                 )
                                 .position(
                                     x: geo.size.width / 6 + 8,
@@ -119,12 +117,6 @@ struct VideoModeView: View {
                     // 倒计时
                     if videoVM.isCountingDown {
                         CountdownOverlay(value: videoVM.countdownValue)
-                    }
-
-                    // 保存进度
-                    if isPreparingShare {
-                        VideoSaveProgressBanner()
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 // 放弃 aspectRatio 约束，让 ZStack 填满 VStack 剩余空间
@@ -204,17 +196,6 @@ struct VideoModeView: View {
                 }
             }
         }
-        .sheet(isPresented: $showShareVideo) {
-            if let url = shareVideoURL {
-                ShareSheet(items: [url])
-            }
-        }
-        .onChange(of: cameraVM.lastSavedVideoURL) { url in
-            guard let url else { return }
-            shareVideoURL = url
-            isPreparingShare = false
-            showShareVideo = true
-        }
         // movieOutput 真正开始写文件的瞬间才同步 PiP — 消除 startRecording() 异步派发引起的时差
         .onChange(of: cameraVM.recordingStartToken) { _ in
             videoVM.startPiPPlaybackSynced()
@@ -284,22 +265,6 @@ private struct CountdownOverlay: View {
             .foregroundColor(.white)
             .shadow(color: .black.opacity(0.5), radius: 10)
             .transition(.scale.combined(with: .opacity))
-    }
-}
-
-// MARK: - 保存进度
-private struct VideoSaveProgressBanner: View {
-    var body: some View {
-        VStack {
-            Spacer()
-            HStack {
-                ProgressView().tint(.white)
-                Text("保存中...").font(.system(size: 13)).foregroundColor(.white)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(Capsule().fill(Color.black.opacity(0.7)))
-            .padding(.bottom, 20)
-        }
     }
 }
 

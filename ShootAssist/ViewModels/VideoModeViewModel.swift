@@ -15,6 +15,9 @@ class VideoModeViewModel: ObservableObject {
     @Published var showVideoPicker = false
     /// 每次递增都会让 PiP 跳到 0 重新播放（录制真正开始时调用）
     @Published var pipRestartToken: Int = 0
+    /// 是否解除 PiP 自带音轨静音 — false 时静止预览不出声，
+    /// true 时录制开始让用户跟着原音乐节奏跳舞
+    @Published var pipAudioEnabled: Bool = false
 
     // MARK: - 对口型歌词（预设）
     @Published var selectedSong: SongLyrics = lyricDatabase[0]
@@ -61,17 +64,24 @@ class VideoModeViewModel: ObservableObject {
         referenceVideoURL = url
         // 导入后停在第一帧：用户需要点开始拍摄才播放，保证和相机录制同步起拍
         isPiPPlaying = false
+        pipAudioEnabled = false  // 预览阶段不出声
         pipRestartToken += 1  // 触发 PiPView 重置到 0，显示第一帧作为封面
     }
 
     func clearReferenceVideo() {
         isPiPPlaying = false
+        pipAudioEnabled = false
         referenceVideoURL = nil
     }
 
-    /// 正式录制开始的瞬间调用 — seek 到 0 + 从头播放，保证和相机录制同步
+    /// 正式录制开始的瞬间调用 — seek 到 0 + 从头播放 + 解除音轨静音
+    /// 让背景音乐和相机录制同步起拍，麦克风顺带录到音乐做后期参考
     func startPiPPlaybackSynced() {
         guard referenceVideoURL != nil else { return }
+        // 切换到 playAndRecord 类别，否则 AVCaptureSession 会强制独占音频
+        // 导致 AVPlayer 静音播放
+        activatePlaybackRecordSession()
+        pipAudioEnabled = true
         isPiPPlaying = true
         pipRestartToken += 1  // 递增 token 让 PiPVideoView 执行 seek(.zero)+play
     }
@@ -79,6 +89,21 @@ class VideoModeViewModel: ObservableObject {
     /// 录制停止时暂停参考视频
     func stopPiPPlayback() {
         isPiPPlaying = false
+        pipAudioEnabled = false
+    }
+
+    /// 切到 .playAndRecord，让 PiP AVPlayer 在录制期间也能出声
+    private func activatePlaybackRecordSession() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(
+                .playAndRecord,
+                mode: .videoRecording,
+                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
+            )
+            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("[VideoMode] activatePlaybackRecordSession failed: \(error)")
+        }
     }
 
     // MARK: - 自定义音乐导入 & 歌词识别
