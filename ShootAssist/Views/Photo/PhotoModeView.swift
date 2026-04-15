@@ -11,10 +11,8 @@ struct PhotoModeView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var subManager: SubscriptionManager
     @State private var showPaywall = false
-    @State private var showShareSheet = false
-    @State private var shareButtonVisible = false
-    @State private var showComparisonShare = false   // 对比拼图分享面板
-    @State private var comparisonImage: UIImage? = nil
+    // 移除拍照后弹出的分享界面 — 用户反馈"每拍一张都跳出分享 = 打扰"
+    // 保存成功后仅 toast 提示，不再自动展示分享 CTA
     @State private var showPoseGuide = false         // Pose 引导面板
     @State private var activePose: PoseData? = nil   // 当前选中的 Pose 引导
     @State private var baseZoomLevel: CGFloat = 1.0  // 缩放手势起始基准
@@ -225,36 +223,6 @@ struct PhotoModeView: View {
                 .padding(.horizontal, 30).padding(.vertical, 16).background(Color.black)
             }
         }
-        // 分享悬浮按钮（保存成功后出现，6s 后淡出）
-        .overlay(alignment: .bottom) {
-            if shareButtonVisible, let img = cameraVM.lastSavedImage {
-                Button(action: { showShareSheet = true }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "square.and.arrow.up")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("分享这张")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 18).padding(.vertical, 10)
-                    .background(
-                        Capsule()
-                            .fill(LinearGradient(
-                                colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
-                                startPoint: .leading, endPoint: .trailing
-                            ))
-                            .shadow(color: Color(hex: "FF5A7E").opacity(0.35), radius: 10, y: 4)
-                    )
-                }
-                .padding(.bottom, 100)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .sheet(isPresented: $showShareSheet) {
-                    ShareSheet(items: [img, ReferralManager.shareAppendText()],
-                               onDismiss: { shareButtonVisible = false },
-                               onComplete: { ReferralManager.recordShareAction() })
-                }
-            }
-        }
         .toolbar(.hidden, for: .navigationBar)
         .toast(isShowing: $cameraVM.showToast)
         .errorToast(isShowing: $cameraVM.showSaveError, message: cameraVM.saveErrorMessage)
@@ -281,12 +249,6 @@ struct PhotoModeView: View {
         .sheet(isPresented: $showPoseGuide) {
             PoseGuideSheet(activePose: $activePose, isPresented: $showPoseGuide)
         }
-        // 对比拼图分享面板
-        .sheet(isPresented: $showComparisonShare) {
-            if let card = comparisonImage {
-                ComparisonShareSheet(image: card, onDismiss: { showComparisonShare = false })
-            }
-        }
         // 参考图选择器
         .sheet(isPresented: $photoVM.showImagePicker) {
             ImagePickerView(image: $photoVM.referenceImage)
@@ -304,36 +266,9 @@ struct PhotoModeView: View {
         .onChange(of: cameraVM.totalPhotosSaved) { count in
             if count == 3 || count == 10 { requestAppReview() }
         }
-        // 保存成功 → 拍同款模式生成对比拼图；普通模式显示分享按钮
-        .onChange(of: cameraVM.lastSavedImage) { img in
-            guard let captured = img else { return }
-
-            if photoVM.currentSubMode == .influencerClone,
-               photoVM.isShootingPhase,
-               let refImage = photoVM.referenceImage {
-                // 生成对比拼图（后台合成，主线程展示）
-                let score = Int(photoVM.poseMatchResult.score * 100)
-                DispatchQueue.global(qos: .userInitiated).async {
-                    let card = ComparisonCardService.shared.generate(
-                        reference: refImage,
-                        captured: captured,
-                        score: score
-                    )
-                    DispatchQueue.main.async {
-                        comparisonImage = card
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                            showComparisonShare = true
-                        }
-                    }
-                }
-            } else {
-                // 普通模式：浮动分享按钮
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { shareButtonVisible = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
-                    withAnimation(.easeOut(duration: 0.5)) { shareButtonVisible = false }
-                }
-            }
-        }
+        // 保存成功仅依靠 toast 提示
+        // 用户反馈：每次拍照都弹分享 = 打扰，需要用户主动触发才分享
+        // 对比拼图 / 分享按钮的自动弹出全部移除
     }
 
     private func requestAppReview() {
