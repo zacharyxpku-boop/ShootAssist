@@ -1,18 +1,25 @@
 import SwiftUI
 
+/// 首页导航目标 — 用值驱动的 NavigationPath 替代多个 Bool binding
+/// 这样在子页面时可以用 navigationPath.isEmpty 精确判断是否在根页面，
+/// 以此隐藏齿轮按钮，解决齿轮 overlay 泄漏到子页面和返回箭头重叠的 bug
+enum HomeRoute: Hashable {
+    case clone
+    case photo
+    case video
+    case poseLibrary
+}
+
 struct HomeView: View {
     @EnvironmentObject var subManager: SubscriptionManager
-    @State private var navigateToClone = false      // 拍同款直通
-    @State private var navigateToPhoto = false      // 普通拍照
-    @State private var navigateToVideo = false
-    @State private var navigateToPoseLibrary = false
+    @State private var navigationPath = NavigationPath()
     @State private var showPaywall = false
     @State private var showSettings = false
     @State private var logoOffset: CGFloat = 0
     @State private var heroPulse = false
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 LinearGradient(
                     colors: [.warmCream, .lightPink, .lavenderPink],
@@ -45,7 +52,7 @@ struct HomeView: View {
 
                         // ── HERO：拍同款 ──────────────────────────────
                         HeroCloneCard(pulse: heroPulse) {
-                            navigateToClone = true
+                            navigationPath.append(HomeRoute.clone)
                         }
                         .padding(.horizontal, 20)
 
@@ -53,17 +60,17 @@ struct HomeView: View {
 
                         // ── 次要功能行：录像 + Pose 灵感 ───────────────
                         HStack(spacing: 12) {
-                            AnimatedCard(onTap: { navigateToVideo = true }) {
+                            AnimatedCard(onTap: { navigationPath.append(HomeRoute.video) }) {
                                 SmallVideoCard(isPro: subManager.isPro)
                             }
-                            AnimatedCard(onTap: { navigateToPoseLibrary = true }) {
+                            AnimatedCard(onTap: { navigationPath.append(HomeRoute.poseLibrary) }) {
                                 SmallPoseCard()
                             }
                         }
                         .padding(.horizontal, 20)
 
                         // ── 拍照入口（弱化，藏在下面）──────────────────
-                        Button(action: { navigateToPhoto = true }) {
+                        Button(action: { navigationPath.append(HomeRoute.photo) }) {
                             HStack(spacing: 6) {
                                 Image(systemName: "camera").font(.system(size: 12))
                                 Text("更多拍照功能")
@@ -79,31 +86,32 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            // 拍同款直通：进入 PhotoModeView 并自动选图
-            .navigationDestination(isPresented: $navigateToClone) {
-                PhotoModeView(launchCloneDirectly: true)
-            }
-            .navigationDestination(isPresented: $navigateToPhoto) {
-                PhotoModeView()
-            }
-            .navigationDestination(isPresented: $navigateToVideo) {
-                VideoModeView().environmentObject(subManager)
-            }
-            .navigationDestination(isPresented: $navigateToPoseLibrary) {
-                PoseLibraryView()
-            }
-            // 齿轮 overlay 必须挂在 NavigationStack 内部，push 到子页面时才会被覆盖
-            // 之前挂在 NavigationStack 外面，导致子页面进入后仍然悬浮在最顶层，
-            // 和 PhotoModeView 的"←返回"按钮物理重叠在左上角
-            .overlay(alignment: .topLeading) {
-                Button(action: { showSettings = true }) {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.midBerryBrown.opacity(0.7))
-                        .frame(width: 44, height: 44)
+            // 值驱动导航：一个 navigationDestination 处理所有目标
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .clone:
+                    PhotoModeView(launchCloneDirectly: true)
+                case .photo:
+                    PhotoModeView()
+                case .video:
+                    VideoModeView().environmentObject(subManager)
+                case .poseLibrary:
+                    PoseLibraryView()
                 }
-                .accessibilityLabel("设置")
-                .padding(.top, 50).padding(.leading, 4)
+            }
+            // 齿轮按钮 only 在根页面显示：push 到子页面后 navigationPath 非空
+            // 条件隐藏彻底避免了和 PhotoModeView / VideoModeView 返回箭头的物理重叠
+            .overlay(alignment: .topLeading) {
+                if navigationPath.isEmpty {
+                    Button(action: { showSettings = true }) {
+                        Image(systemName: "gearshape")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.midBerryBrown.opacity(0.7))
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("设置")
+                    .padding(.top, 50).padding(.leading, 4)
+                }
             }
         }
         .sheet(isPresented: $showPaywall) {
