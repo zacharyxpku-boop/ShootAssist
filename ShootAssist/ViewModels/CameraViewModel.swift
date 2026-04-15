@@ -184,24 +184,28 @@ class CameraViewModel: NSObject, ObservableObject {
                 self.session.addOutput(self.videoDataOutput)
             }
 
-            // videoOrientation 确保 sampleBuffer 以竖屏方向传给 Vision（默认可能是横向传感器朝向）
-            if let conn = self.videoDataOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
-            }
-            // movieOutput connection 同步设置竖屏方向，防止初始录制方向错乱
-            if let conn = self.movieOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
-            }
-            // ✅ photoOutput 补设 videoOrientation，避免拍出的照片方向元数据错误
-            if let conn = self.photoOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
-                // 初始后置摄像头不镜像；切换前置后由 switchCamera 更新
-                if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
-            }
-
             self.session.commitConfiguration()
             self.session.startRunning()
             self.isConfigured = true
+
+            // ⚠️ 关键时序修复：connection 的 orientation / mirroring 必须在
+            // session.startRunning() 之后设置才能稳定生效。
+            // 之前放在 commitConfiguration 之前，某些机型（A14/A15）iOS 17 上会被
+            // session 启动过程 reset 回默认 landscape right，导致录制出的 .mov 文件
+            // 方向错乱。实测把这段挪到 startRunning 之后可以彻底修复横屏 bug。
+            if let conn = self.videoDataOutput.connection(with: .video) {
+                self.setPortraitOrientation(conn)
+            }
+            if let conn = self.movieOutput.connection(with: .video) {
+                self.setPortraitOrientation(conn)
+            }
+            if let conn = self.photoOutput.connection(with: .video) {
+                self.setPortraitOrientation(conn)
+                if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
+            }
+
+            // 后置摄像头启动：开启几何畸变校正（如果格式支持），减轻边缘拉伸
+            self.applyGeometricDistortionCorrectionIfSupported(to: camera)
 
             // 计算并发布实际宽高比（关键：防前后摄 activeFormat 不同导致拉伸）
             self.updatePreviewAspectRatio()
@@ -271,10 +275,43 @@ class CameraViewModel: NSObject, ObservableObject {
             // 切换后重新发布实际宽高比（前/后摄 activeFormat 可能不同）
             self.updatePreviewAspectRatio()
 
+            // 前置摄像头抗畸变处理：
+            // 1) 开启几何畸变校正（如果该 format 支持，~50% 机型支持）
+            // 2) 切到前摄时强制 1.4x 数字变焦，裁掉广角边缘人脸被拉长的区域
+            //    —— 苹果原生相机 app 前摄也是这么做的，不是 bug 是补偿
+            self.applyGeometricDistortionCorrectionIfSupported(to: newDevice)
+            let targetZoom: CGFloat = isFront ? 1.4 : 1.0
+            do {
+                try newDevice.lockForConfiguration()
+                let clampedZoom = min(max(targetZoom, 1.0), newDevice.maxAvailableVideoZoomFactor)
+                newDevice.videoZoomFactor = clampedZoom
+                newDevice.unlockForConfiguration()
+                DispatchQueue.main.async { [weak self] in
+                    self?.zoomLevel = clampedZoom
+                }
+            } catch {
+                DispatchQueue.main.async { [weak self] in
+                    self?.zoomLevel = 1.0
+                }
+            }
+
             DispatchQueue.main.async {
                 self.isFrontCamera = !currentlyFront
-                self.zoomLevel = 1.0
             }
+        }
+    }
+
+    /// 若当前 activeFormat 支持几何畸变校正，则开启之。
+    /// 这是前置广角镜头桶形畸变的官方软件补偿开关，iOS 13+。
+    /// 不是所有机型 / 不是所有 format 都支持，调用前必须 guard。
+    private func applyGeometricDistortionCorrectionIfSupported(to device: AVCaptureDevice) {
+        guard device.isGeometricDistortionCorrectionSupported else { return }
+        do {
+            try device.lockForConfiguration()
+            device.isGeometricDistortionCorrectionEnabled = true
+            device.unlockForConfiguration()
+        } catch {
+            print("[Camera] GDC enable failed: \(error)")
         }
     }
 
