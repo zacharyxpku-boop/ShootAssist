@@ -218,19 +218,22 @@ private struct HeroCloneCard: View {
                             .foregroundColor(.white.opacity(0.8))
                             .lineSpacing(3)
 
-                        // 按钮
-                        HStack(spacing: 6) {
+                        // 按钮：加大 spacing / padding，Image 字号与 Text 对齐
+                        // 原 spacing 6 + padding 14 在 pulse 放大瞬间会视觉粘连，
+                        // Image size 12 比 Text size 14 小 2pt，baseline 错位显得箭头"钻进"字里
+                        HStack(spacing: 10) {
                             Text("立刻试试")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundColor(Color(hex: "FF5A7E"))
                             Image(systemName: "arrow.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(Color(hex: "FF5A7E"))
                         }
-                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .padding(.horizontal, 18).padding(.vertical, 9)
                         .background(Capsule().fill(.white))
+                        // 脉动周期放缓到 2.0s，减少视觉抖动频率；振幅保持 1.03
                         .scaleEffect(pulse ? 1.03 : 1.0)
-                        .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulse)
+                        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: pulse)
                     }
                     .padding(24)
 
