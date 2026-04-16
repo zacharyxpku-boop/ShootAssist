@@ -42,10 +42,14 @@ class VisionService: NSObject, ObservableObject {
     private var frameCount: Int = 0
     private var consecutiveNoPersonFrames: Int = 0
     private let lowLightThreshold = 30  // 6 秒（30帧 × 5帧间隔 × 0.2s/帧 ≈ 6s）无人 → 提示
-    /// 原值 5（每 5 帧分析一次 = 30fps 下仅 6fps），是识别率低的主因之一。
-    /// 降到 2（15fps 分析）配合 revision 2 大幅提升连续检出率。
-    /// 代价：GPU 负载翻倍，但在 A14+ 上实测不卡。
+    /// 基准分析间隔：每 2 帧分析一次（15fps @ 30fps 输入）
+    /// 自适应逻辑：连续丢失检测时临时降到逐帧，恢复后回退
+    private let baseAnalyzeInterval: Int = 2
     var analyzeEveryNFrames: Int = 2
+    /// 连续「已分析但未检出人物」的帧数（≠ consecutiveNoPersonFrames，那个是所有帧）
+    private var consecutiveMissedAnalysisFrames: Int = 0
+    /// 超过此值切到逐帧分析
+    private let adaptiveThreshold: Int = 3
 
     /// EMA 平滑系数（0~1，越大越跟随新值，越小越平滑稳定）
     /// 0.35：在快速动作响应性和稳定性之间取得平衡
@@ -142,11 +146,20 @@ class VisionService: NSObject, ObservableObject {
             headTopMargin: 0, isCutOff: false
         )
 
-        // 连续无人帧计数 → 低光/无人提示
+        // 自适应帧率：连续丢检测 → 逐帧分析；恢复 → 回退到基准间隔
         if hasPerson {
             consecutiveNoPersonFrames = 0
+            consecutiveMissedAnalysisFrames = 0
+            if analyzeEveryNFrames != baseAnalyzeInterval {
+                analyzeEveryNFrames = baseAnalyzeInterval
+            }
         } else {
             consecutiveNoPersonFrames += 1
+            consecutiveMissedAnalysisFrames += 1
+            // 连续丢了 N 次已分析帧 → 切到逐帧，不漏掉任何一帧
+            if consecutiveMissedAnalysisFrames >= adaptiveThreshold && analyzeEveryNFrames > 1 {
+                analyzeEveryNFrames = 1
+            }
         }
         let shouldWarnLowLight = consecutiveNoPersonFrames >= lowLightThreshold
 
@@ -379,15 +392,17 @@ class VisionService: NSObject, ObservableObject {
     }
 
     // MARK: - 提取关键点（分关节置信度阈值，减少低置信度点引起的骨骼抖动）
+    /// 关节置信度阈值 — 越低越容易检出，但噪点增加（EMA 平滑抵消）
+    /// 核心骨架点（肩/髋/根）降到 0.15 确保侧身/遮挡也能出点
     private static let jointConfidenceThresholds: [VNHumanBodyPoseObservation.JointName: Float] = [
-        .nose: 0.5, .neck: 0.6,
-        .leftShoulder: 0.35, .rightShoulder: 0.35,
-        .leftElbow: 0.3,    .rightElbow: 0.3,
-        .leftWrist: 0.25,    .rightWrist: 0.25,
-        .leftHip: 0.2,      .rightHip: 0.2,   // lowered from 0.7
-        .leftKnee: 0.15,    .rightKnee: 0.15, // lowered from 0.6
-        .leftAnkle: 0.1,    .rightAnkle: 0.1, // lowered from 0.4
-        .root: 0.2          // lowered from 0.8
+        .nose: 0.3,  .neck: 0.4,
+        .leftShoulder: 0.15, .rightShoulder: 0.15,
+        .leftElbow: 0.2,     .rightElbow: 0.2,
+        .leftWrist: 0.15,    .rightWrist: 0.15,
+        .leftHip: 0.1,       .rightHip: 0.1,
+        .leftKnee: 0.1,      .rightKnee: 0.1,
+        .leftAnkle: 0.08,    .rightAnkle: 0.08,
+        .root: 0.1
     ]
 
     private func extractJoints(from observation: VNHumanBodyPoseObservation) -> [VNHumanBodyPoseObservation.JointName: CGPoint] {

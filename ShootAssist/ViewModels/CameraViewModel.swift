@@ -592,13 +592,103 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput,
                     didFinishRecordingTo outputFileURL: URL,
                     from connections: [AVCaptureConnection], error: Error?) {
-        // 检查录制错误（app 进入后台/存储满/权限中断都会触发）
         if let error = error {
             print("[VideoRecording] error: \(error.localizedDescription)")
-            // 即使报错，部分文件可能已写入，仍尝试保存（iOS 行为）
         }
-        if FileManager.default.fileExists(atPath: outputFileURL.path) {
-            saveVideoToLibrary(url: outputFileURL)
+        guard FileManager.default.fileExists(atPath: outputFileURL.path) else { return }
+
+        // 终极保险：检查视频 track 的实际方向，如果是横屏就用 AVMutableComposition 修正
+        Task {
+            let correctedURL = await Self.ensurePortraitOrientation(fileURL: outputFileURL)
+            await MainActor.run { [weak self] in
+                self?.saveVideoToLibrary(url: correctedURL)
+            }
+        }
+    }
+
+    /// 检查视频文件是否为竖屏；若为横屏则重新 mux 加 90° 旋转 transform
+    @MainActor
+    private static func ensurePortraitOrientation(fileURL: URL) async -> URL {
+        let asset = AVURLAsset(url: fileURL)
+        guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
+            print("[VideoOrientation] no video track, skipping correction")
+            return fileURL
+        }
+
+        let naturalSize: CGSize
+        let preferredTransform: CGAffineTransform
+        do {
+            naturalSize = try await videoTrack.load(.naturalSize)
+            preferredTransform = try await videoTrack.load(.preferredTransform)
+        } catch {
+            print("[VideoOrientation] failed to load track props: \(error)")
+            return fileURL
+        }
+
+        // 判断方向：应用 transform 后的尺寸，portrait 意味着 height > width
+        let transformedSize = naturalSize.applying(preferredTransform)
+        let w = abs(transformedSize.width)
+        let h = abs(transformedSize.height)
+        if h >= w {
+            print("[VideoOrientation] already portrait (\(w)x\(h)), no correction needed")
+            return fileURL
+        }
+
+        // 横屏！重新 mux
+        print("[VideoOrientation] ⚠️ landscape detected (\(w)x\(h)), re-muxing to portrait...")
+        let composition = AVMutableComposition()
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else { return fileURL }
+
+        do {
+            let duration = try await asset.load(.duration)
+            try compositionVideoTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: duration),
+                of: videoTrack, at: .zero
+            )
+        } catch {
+            print("[VideoOrientation] insertTimeRange failed: \(error)")
+            return fileURL
+        }
+
+        // 旋转 90° CW → portrait
+        let rotateTransform = CGAffineTransform(rotationAngle: .pi / 2)
+            .translatedBy(x: 0, y: -naturalSize.width)
+        compositionVideoTrack.preferredTransform = rotateTransform
+
+        // 拷贝音频 track
+        if let audioTrack = try? await asset.loadTracks(withMediaType: .audio).first,
+           let compositionAudioTrack = composition.addMutableTrack(
+               withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            let duration = try? await asset.load(.duration)
+            if let duration {
+                try? compositionAudioTrack.insertTimeRange(
+                    CMTimeRange(start: .zero, duration: duration),
+                    of: audioTrack, at: .zero
+                )
+            }
+        }
+
+        // 导出
+        let correctedURL = fileURL.deletingLastPathComponent()
+            .appendingPathComponent("sa_video_corrected_\(Int(Date().timeIntervalSince1970)).mov")
+        guard let exportSession = AVAssetExportSession(
+            asset: composition, presetName: AVAssetExportPresetHighestQuality
+        ) else { return fileURL }
+
+        exportSession.outputURL = correctedURL
+        exportSession.outputFileType = .mov
+        await exportSession.export()
+
+        if exportSession.status == .completed {
+            try? FileManager.default.removeItem(at: fileURL) // 删原横屏文件
+            print("[VideoOrientation] ✅ re-muxed to portrait: \(correctedURL.lastPathComponent)")
+            return correctedURL
+        } else {
+            print("[VideoOrientation] export failed: \(String(describing: exportSession.error))")
+            return fileURL  // fallback 保存原文件
         }
     }
 }
