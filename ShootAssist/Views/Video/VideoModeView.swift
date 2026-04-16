@@ -210,7 +210,9 @@ struct VideoModeView: View {
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else { return nil }
         session.outputURL = outputURL
         session.outputFileType = .mp4
-        await session.export()
+        await withCheckedContinuation { continuation in
+            session.exportAsynchronously { continuation.resume() }
+        }
         return session.status == .completed ? outputURL : nil
     }
 }

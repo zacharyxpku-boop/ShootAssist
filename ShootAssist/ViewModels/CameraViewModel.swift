@@ -680,7 +680,9 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
 
         exportSession.outputURL = correctedURL
         exportSession.outputFileType = .mov
-        await exportSession.export()
+        await withCheckedContinuation { continuation in
+            exportSession.exportAsynchronously { continuation.resume() }
+        }
 
         if exportSession.status == .completed {
             try? FileManager.default.removeItem(at: fileURL) // 删原横屏文件

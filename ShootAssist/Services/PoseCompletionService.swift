@@ -199,7 +199,7 @@ class PoseCompletionService {
         if result[.leftHip] == nil || result[.rightHip] == nil {
             if let leftShoulder = get(.leftShoulder),
                let rightShoulder = get(.rightShoulder),
-               let root = get(.root) {
+               let _ = get(.root) {
                 let shoulderWidth = abs(rightShoulder.x - leftShoulder.x)
                 let torsoHeight = shoulderWidth * 1.5
                 let shoulderMidX = (leftShoulder.x + rightShoulder.x) / 2

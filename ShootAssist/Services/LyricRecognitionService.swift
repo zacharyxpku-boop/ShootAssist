@@ -1,5 +1,5 @@
 import Foundation
-import Speech
+@preconcurrency import Speech
 import AVFoundation
 
 // MARK: - 歌词识别服务（SFSpeechRecognizer，中文优先）
