@@ -86,10 +86,8 @@ class VisionService: NSObject, ObservableObject {
         let personReq = VNDetectHumanRectanglesRequest()
         let faceReq = VNDetectFaceRectanglesRequest()
         let poseReq = VNDetectHumanBodyPoseRequest()
-        // iOS 17+ revision 2 对复杂姿态 / 遮挡 / 侧身检出率显著高于 revision 1
-        if #available(iOS 17.0, *) {
-            poseReq.revision = VNDetectHumanBodyPoseRequestRevision2
-        }
+        // 使用设备上最新 revision（iOS 17+ 自动升级到更高精度模型）
+        poseReq.revision = VNDetectHumanBodyPoseRequest.currentRevision
 
         do {
             try handler.perform([personReq, faceReq, poseReq])
@@ -233,7 +231,7 @@ class VisionService: NSObject, ObservableObject {
 
         let firstHandler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
         let firstPoseReq = VNDetectHumanBodyPoseRequest()
-        if #available(iOS 17.0, *) { firstPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
+        firstPoseReq.revision = VNDetectHumanBodyPoseRequest.currentRevision
         try? firstHandler.perform([firstPoseReq])
         let firstJoints = firstPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
@@ -256,7 +254,7 @@ class VisionService: NSObject, ObservableObject {
             if let upperCrop = cropCGImage(cgImage, to: upperBodyBox, size: uiImage.size) {
                 let upperHandler = VNImageRequestHandler(cgImage: upperCrop, orientation: orientation)
                 let upperPoseReq = VNDetectHumanBodyPoseRequest()
-                if #available(iOS 17.0, *) { upperPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
+                upperPoseReq.revision = VNDetectHumanBodyPoseRequest.currentRevision
                 try? upperHandler.perform([upperPoseReq])
                 let upperJoints = upperPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
                 let remappedUpperJoints = remapJoints(upperJoints, fromCrop: upperBodyBox)
@@ -314,7 +312,7 @@ class VisionService: NSObject, ObservableObject {
 
         let secondHandler = VNImageRequestHandler(cgImage: croppedCGImage, orientation: orientation)
         let secondPoseReq = VNDetectHumanBodyPoseRequest()
-        if #available(iOS 17.0, *) { secondPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
+        secondPoseReq.revision = VNDetectHumanBodyPoseRequest.currentRevision
         try? secondHandler.perform([secondPoseReq])
         let secondJoints = secondPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
@@ -385,7 +383,7 @@ class VisionService: NSObject, ObservableObject {
     func analyzePose(in image: CGImage) -> [VNHumanBodyPoseObservation.JointName: CGPoint]? {
         let handler = VNImageRequestHandler(cgImage: image, orientation: .up)
         let req = VNDetectHumanBodyPoseRequest()
-        if #available(iOS 17.0, *) { req.revision = VNDetectHumanBodyPoseRequestRevision2 }
+        req.revision = VNDetectHumanBodyPoseRequest.currentRevision
         try? handler.perform([req])
         guard let observation = req.results?.first else { return nil }
         return extractJoints(from: observation)
