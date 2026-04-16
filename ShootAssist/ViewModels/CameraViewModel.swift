@@ -45,11 +45,23 @@ class CameraViewModel: NSObject, ObservableObject {
     private var focusResetWorkItem: DispatchWorkItem?
 
     /// 设置 connection 为竖屏方向（兼容 iOS 16 和 iOS 17+）
+    /// ⚠️ 仅用于 photoOutput / videoDataOutput。movieOutput 必须用下面的专用方法。
     private func setPortraitOrientation(_ conn: AVCaptureConnection) {
         if #available(iOS 17.0, *) {
             if conn.isVideoRotationAngleSupported(90) { conn.videoRotationAngle = 90 }
         } else {
             if conn.isVideoOrientationSupported { conn.videoOrientation = .portrait }
+        }
+    }
+
+    /// movieOutput connection 专用 — 强制使用 videoOrientation（旧 API）
+    /// 根因文档：AVCaptureMovieFileOutput 在 iOS 17+ 仍然不认 videoRotationAngle，
+    /// 只有 videoOrientation 能让写入的 .mov 文件携带正确的旋转元数据。
+    /// 之前两轮修复全部调的 setPortraitOrientation，在 iOS 17 走进了
+    /// videoRotationAngle 分支，movieOutput 直接忽略，导致横屏。
+    private func setMovieOutputPortrait(_ conn: AVCaptureConnection) {
+        if conn.isVideoOrientationSupported {
+            conn.videoOrientation = .portrait
         }
     }
 
@@ -196,15 +208,15 @@ class CameraViewModel: NSObject, ObservableObject {
             if let conn = self.videoDataOutput.connection(with: .video) {
                 self.setPortraitOrientation(conn)
             }
+            // ✅ movieOutput 必须用 videoOrientation（旧 API），不能用 videoRotationAngle
             if let conn = self.movieOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
+                self.setMovieOutputPortrait(conn)
             }
             if let conn = self.photoOutput.connection(with: .video) {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
 
-            // 后置摄像头启动：开启几何畸变校正（如果格式支持），减轻边缘拉伸
             self.applyGeometricDistortionCorrectionIfSupported(to: camera)
 
             // 计算并发布实际宽高比（关键：防前后摄 activeFormat 不同导致拉伸）
@@ -243,12 +255,18 @@ class CameraViewModel: NSObject, ObservableObject {
             self.session.addInput(newInput)
             self.currentDevice = newDevice
 
-            // 切换设备后重新协商 preset：前后摄对 1080p 的支持可能不同
+            // 切换设备后重新协商 preset：前后摄对 preset 的支持可能不同
+            // 照片模式也必须重设！之前只对 isVideoMode 重协商，
+            // 如果前摄不支持 .photo 会静默 fallback 到 .high，宽高比推导就会出错
             if self.isVideoMode {
                 if self.session.canSetSessionPreset(.hd1920x1080) {
                     self.session.sessionPreset = .hd1920x1080
                 } else if self.session.canSetSessionPreset(.hd1280x720) {
                     self.session.sessionPreset = .hd1280x720
+                }
+            } else {
+                if self.session.canSetSessionPreset(.photo) {
+                    self.session.sessionPreset = .photo
                 }
             }
             // ✅ 在 sessionQueue 中同步更新 visionService，确保新摄像头首帧前 isFrontCamera 已就绪
@@ -261,9 +279,9 @@ class CameraViewModel: NSObject, ObservableObject {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
-            // movieOutput connection 也需同步更新，否则前摄录制视频方向/镜像错乱
+            // ✅ movieOutput 强制用 videoOrientation 旧 API
             if let conn = self.movieOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
+                self.setMovieOutputPortrait(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
             // ✅ photoOutput 同步镜像状态：前置拍照保存非镜像（与苹果原相机一致）
@@ -277,10 +295,10 @@ class CameraViewModel: NSObject, ObservableObject {
 
             // 前置摄像头抗畸变处理：
             // 1) 开启几何畸变校正（如果该 format 支持，~50% 机型支持）
-            // 2) 切到前摄时强制 1.4x 数字变焦，裁掉广角边缘人脸被拉长的区域
-            //    —— 苹果原生相机 app 前摄也是这么做的，不是 bug 是补偿
+            // 2) 前摄 2.0x 数字变焦裁掉边缘畸变——苹果原相机等效焦距也约 2x
+            //    1.4x 不够，用户反馈仍然感觉人脸拉长
             self.applyGeometricDistortionCorrectionIfSupported(to: newDevice)
-            let targetZoom: CGFloat = isFront ? 1.4 : 1.0
+            let targetZoom: CGFloat = isFront ? 2.0 : 1.0
             do {
                 try newDevice.lockForConfiguration()
                 let clampedZoom = min(max(targetZoom, 1.0), newDevice.maxAvailableVideoZoomFactor)
@@ -441,8 +459,9 @@ class CameraViewModel: NSObject, ObservableObject {
         // connection 会回退到默认（landscape right），导致导出视频变横向
         sessionQueue.async { [weak self] in
             guard let self else { return }
+            // ✅ 录制前最终兜底：强制 videoOrientation = .portrait
             if let conn = self.movieOutput.connection(with: .video) {
-                self.setPortraitOrientation(conn)
+                self.setMovieOutputPortrait(conn)
                 if conn.isVideoMirroringSupported {
                     conn.isVideoMirrored = isFront
                 }
