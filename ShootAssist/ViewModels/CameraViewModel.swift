@@ -255,10 +255,16 @@ class CameraViewModel: NSObject, ObservableObject {
             self.session.addInput(newInput)
             self.currentDevice = newDevice
 
-            // 切换设备后重新协商 preset：前后摄对 preset 的支持可能不同
-            // 照片模式也必须重设！之前只对 isVideoMode 重协商，
-            // 如果前摄不支持 .photo 会静默 fallback 到 .high，宽高比推导就会出错
-            if self.isVideoMode {
+            // 前后摄走不同策略：
+            // - 前摄：sessionPreset = .inputPriority，手动选窄 FOV format
+            //   （Apple 原相机的做法，避免 87° TrueDepth 超广角透视拉伸）
+            // - 后摄：保持标准 preset（.photo / .hd1920x1080）
+            let switchingToFront = !currentlyFront
+            if switchingToFront {
+                if self.session.canSetSessionPreset(.inputPriority) {
+                    self.session.sessionPreset = .inputPriority
+                }
+            } else if self.isVideoMode {
                 if self.session.canSetSessionPreset(.hd1920x1080) {
                     self.session.sessionPreset = .hd1920x1080
                 } else if self.session.canSetSessionPreset(.hd1280x720) {
@@ -293,12 +299,20 @@ class CameraViewModel: NSObject, ObservableObject {
             // 切换后重新发布实际宽高比（前/后摄 activeFormat 可能不同）
             self.updatePreviewAspectRatio()
 
-            // 前置摄像头抗畸变处理：
-            // 1) 开启几何畸变校正（如果该 format 支持，~50% 机型支持）
-            // 2) 前摄 2.0x 数字变焦裁掉边缘畸变——苹果原相机等效焦距也约 2x
-            //    1.4x 不够，用户反馈仍然感觉人脸拉长
+            // 前摄抗畸变三层组合拳：
+            // 1) activeFormat 选窄 FOV（H2 主修复，inputPriority 模式下生效）
+            // 2) 几何畸变校正 GDC（软件桶形畸变补偿，~50% format 支持）
+            // 3) 如果 format 选择失败，2.0x zoom 作为 fallback
+            if isFront {
+                self.selectOptimalFrontFormat(for: newDevice)
+            }
             self.applyGeometricDistortionCorrectionIfSupported(to: newDevice)
-            let targetZoom: CGFloat = isFront ? 2.0 : 1.0
+
+            // zoom 策略：前摄若 selectOptimalFrontFormat 成功（已窄 FOV）→ 1.0x
+            //           否则 → 2.0x fallback
+            // 判定依据：activeFormat 的 FOV ≤ 75 认为 format 选择成功
+            let formatSuccess = isFront && newDevice.activeFormat.videoFieldOfView <= 75
+            let targetZoom: CGFloat = (isFront && !formatSuccess) ? 2.0 : 1.0
             do {
                 try newDevice.lockForConfiguration()
                 let clampedZoom = min(max(targetZoom, 1.0), newDevice.maxAvailableVideoZoomFactor)
@@ -313,10 +327,39 @@ class CameraViewModel: NSObject, ObservableObject {
                 }
             }
 
+            // 诊断日志：前摄切换完成瞬间打印 7 项关键值
+            if isFront {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    // 从 UIWindow 里找 AVCaptureVideoPreviewLayer（诊断用，生产环境无副作用）
+                    let previewLayer = self.findPreviewLayer()
+                    self.logFrontCameraDiagnostics(device: newDevice, previewLayer: previewLayer)
+                }
+            }
+
             DispatchQueue.main.async {
                 self.isFrontCamera = !currentlyFront
             }
         }
+    }
+
+    /// 遍历当前 app 的 window scene，找到第一个 AVCaptureVideoPreviewLayer
+    /// 仅诊断用：前摄切换后需要读 layer.bounds 和 videoGravity
+    private func findPreviewLayer() -> AVCaptureVideoPreviewLayer? {
+        guard let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let window = scene.windows.first else {
+            return nil
+        }
+        return searchPreviewLayer(in: window.layer)
+    }
+
+    private func searchPreviewLayer(in layer: CALayer) -> AVCaptureVideoPreviewLayer? {
+        if let preview = layer as? AVCaptureVideoPreviewLayer { return preview }
+        for sub in layer.sublayers ?? [] {
+            if let found = searchPreviewLayer(in: sub) { return found }
+        }
+        return nil
     }
 
     /// 若当前 activeFormat 支持几何畸变校正，则开启之。
@@ -331,6 +374,82 @@ class CameraViewModel: NSObject, ObservableObject {
         } catch {
             print("[Camera] GDC enable failed: \(error)")
         }
+    }
+
+    /// H2 核心修复：前摄专用窄视角 format 选择
+    /// iPhone 前摄默认 format 常为超广角 TrueDepth（~87° FOV），导致透视拉伸。
+    /// Apple 原相机会主动切到 55-75° FOV 的窄视角 format，等效焦段 ~28mm。
+    /// 本方法遍历 device.formats，选出 FOV 最小但 ≥55° 的高分辨率 format 并激活。
+    /// 必须配合 sessionPreset = .inputPriority 使用，否则 iOS 会用 preset 覆盖。
+    private func selectOptimalFrontFormat(for device: AVCaptureDevice) {
+        let candidates = device.formats.filter { format in
+            let dims = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            let maxDim = max(dims.width, dims.height)
+            let minDim = min(dims.width, dims.height)
+            let fov = format.videoFieldOfView
+            // 支持 30fps
+            let supports30 = format.videoSupportedFrameRateRanges.contains { range in
+                range.minFrameRate <= 30 && range.maxFrameRate >= 30
+            }
+            // 分辨率 ≥ 720p
+            let goodRes = maxDim >= 1280 && minDim >= 720
+            // FOV 落在 55-80° 区间（太窄丢画面，太宽继续变形）
+            let goodFOV = fov >= 55 && fov <= 80
+            return supports30 && goodRes && goodFOV
+        }
+
+        // 选 FOV 最小的（视角最窄 = 透视最自然），同 FOV 选最高分辨率
+        guard let best = candidates.min(by: { a, b in
+            if a.videoFieldOfView != b.videoFieldOfView {
+                return a.videoFieldOfView < b.videoFieldOfView
+            }
+            let aDims = CMVideoFormatDescriptionGetDimensions(a.formatDescription)
+            let bDims = CMVideoFormatDescriptionGetDimensions(b.formatDescription)
+            return (Int(aDims.width) * Int(aDims.height)) > (Int(bDims.width) * Int(bDims.height))
+        }) else {
+            print("[Camera] ⚠️ No suitable narrow-FOV format for front camera, falling back to default")
+            return
+        }
+
+        do {
+            try device.lockForConfiguration()
+            device.activeFormat = best
+            // 锁 30fps
+            let target = CMTimeMake(value: 1, timescale: 30)
+            device.activeVideoMinFrameDuration = target
+            device.activeVideoMaxFrameDuration = target
+            device.unlockForConfiguration()
+            let dims = CMVideoFormatDescriptionGetDimensions(best.formatDescription)
+            print("[Camera] ✅ Front format: \(dims.width)x\(dims.height) FOV=\(best.videoFieldOfView)°")
+        } catch {
+            print("[Camera] selectOptimalFrontFormat lock failed: \(error)")
+        }
+    }
+
+    /// 诊断日志：前摄切换完成后打印 7 项关键值
+    /// 真机测试时直接看 Xcode console 或 Console.app，所有值一次打印
+    private func logFrontCameraDiagnostics(device: AVCaptureDevice, previewLayer: AVCaptureVideoPreviewLayer?) {
+        let dims = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
+        let fov = device.activeFormat.videoFieldOfView
+        let preset = self.session.sessionPreset.rawValue
+        let layerBounds = previewLayer?.bounds ?? .zero
+        let gravity = previewLayer?.videoGravity.rawValue ?? "nil"
+        let ratio = self.previewAspectRatio
+
+        print("""
+
+        ╔══════════════════════════════════════════════════════════════
+        ║ [FrontCameraDiagnostics]
+        ║ 1. activeFormat dims: \(dims.width) x \(dims.height)
+        ║ 2. sessionPreset:     \(preset)
+        ║ 3. previewLayer bounds: \(layerBounds)
+        ║ 4. videoGravity:      \(gravity)
+        ║ 5. previewAspectRatio: \(ratio)
+        ║ 6. FOV:               \(fov)°
+        ║ 7. photoOutput natSize: (see next capture output)
+        ╚══════════════════════════════════════════════════════════════
+
+        """)
     }
 
     // MARK: - 拍照
@@ -569,6 +688,10 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
                      didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
         DispatchQueue.main.async { [weak self] in self?.isCapturingPhoto = false }
         guard error == nil, let data = photo.fileDataRepresentation() else { return }
+        // 诊断第 7 项：解码实际拍出的照片尺寸，看和预览比例是否对齐
+        if let image = UIImage(data: data) {
+            print("[Camera] 📸 Captured photo size: \(image.size), scale=\(image.scale), orientation=\(image.imageOrientation.rawValue)")
+        }
         savePhotoToLibrary(data: data)
     }
 }

@@ -24,6 +24,11 @@ struct CameraPreviewView: UIViewRepresentable {
     func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
         uiView.previewLayer.session = session
         uiView.onTapToFocus = onTapToFocus
+        // Defense-in-depth: 每次 SwiftUI 刷新都重新 assert videoGravity
+        // 防止任何外部代码意外改成 resizeAspectFill 导致拉伸
+        if uiView.previewLayer.videoGravity != .resizeAspect {
+            uiView.previewLayer.videoGravity = .resizeAspect
+        }
     }
 }
 
