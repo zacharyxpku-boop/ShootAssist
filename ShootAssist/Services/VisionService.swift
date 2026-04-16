@@ -42,7 +42,10 @@ class VisionService: NSObject, ObservableObject {
     private var frameCount: Int = 0
     private var consecutiveNoPersonFrames: Int = 0
     private let lowLightThreshold = 30  // 6 秒（30帧 × 5帧间隔 × 0.2s/帧 ≈ 6s）无人 → 提示
-    var analyzeEveryNFrames: Int = 5
+    /// 原值 5（每 5 帧分析一次 = 30fps 下仅 6fps），是识别率低的主因之一。
+    /// 降到 2（15fps 分析）配合 revision 2 大幅提升连续检出率。
+    /// 代价：GPU 负载翻倍，但在 A14+ 上实测不卡。
+    var analyzeEveryNFrames: Int = 2
 
     /// EMA 平滑系数（0~1，越大越跟随新值，越小越平滑稳定）
     /// 0.35：在快速动作响应性和稳定性之间取得平衡
@@ -79,6 +82,10 @@ class VisionService: NSObject, ObservableObject {
         let personReq = VNDetectHumanRectanglesRequest()
         let faceReq = VNDetectFaceRectanglesRequest()
         let poseReq = VNDetectHumanBodyPoseRequest()
+        // iOS 17+ revision 2 对复杂姿态 / 遮挡 / 侧身检出率显著高于 revision 1
+        if #available(iOS 17.0, *) {
+            poseReq.revision = VNDetectHumanBodyPoseRequestRevision2
+        }
 
         do {
             try handler.perform([personReq, faceReq, poseReq])
@@ -213,6 +220,7 @@ class VisionService: NSObject, ObservableObject {
 
         let firstHandler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation)
         let firstPoseReq = VNDetectHumanBodyPoseRequest()
+        if #available(iOS 17.0, *) { firstPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
         try? firstHandler.perform([firstPoseReq])
         let firstJoints = firstPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
@@ -235,6 +243,7 @@ class VisionService: NSObject, ObservableObject {
             if let upperCrop = cropCGImage(cgImage, to: upperBodyBox, size: uiImage.size) {
                 let upperHandler = VNImageRequestHandler(cgImage: upperCrop, orientation: orientation)
                 let upperPoseReq = VNDetectHumanBodyPoseRequest()
+                if #available(iOS 17.0, *) { upperPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
                 try? upperHandler.perform([upperPoseReq])
                 let upperJoints = upperPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
                 let remappedUpperJoints = remapJoints(upperJoints, fromCrop: upperBodyBox)
@@ -292,6 +301,7 @@ class VisionService: NSObject, ObservableObject {
 
         let secondHandler = VNImageRequestHandler(cgImage: croppedCGImage, orientation: orientation)
         let secondPoseReq = VNDetectHumanBodyPoseRequest()
+        if #available(iOS 17.0, *) { secondPoseReq.revision = VNDetectHumanBodyPoseRequestRevision2 }
         try? secondHandler.perform([secondPoseReq])
         let secondJoints = secondPoseReq.results?.first.flatMap { self.extractJoints(from: $0) } ?? [:]
 
@@ -362,6 +372,7 @@ class VisionService: NSObject, ObservableObject {
     func analyzePose(in image: CGImage) -> [VNHumanBodyPoseObservation.JointName: CGPoint]? {
         let handler = VNImageRequestHandler(cgImage: image, orientation: .up)
         let req = VNDetectHumanBodyPoseRequest()
+        if #available(iOS 17.0, *) { req.revision = VNDetectHumanBodyPoseRequestRevision2 }
         try? handler.perform([req])
         guard let observation = req.results?.first else { return nil }
         return extractJoints(from: observation)
