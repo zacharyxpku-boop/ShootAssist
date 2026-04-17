@@ -77,8 +77,9 @@ class CameraViewModel: NSObject, ObservableObject {
             ratio = 9.0 / 16.0  // 16:9 landscape → 9:16 portrait
         case .vga640x480, .cif352x288:
             ratio = 3.0 / 4.0   // 4:3 legacy
-        case .high, .medium, .low:
-            // .high/.medium/.low 不确定，fallback 到 activeFormat 读
+        case .high, .medium, .low, .inputPriority:
+            // .inputPriority 用于前摄手动选 format，比例由 activeFormat 决定
+            // .high/.medium/.low 也不确定，一律 fallback 到 activeFormat 读
             if let device = currentDevice {
                 let dims = CMVideoFormatDescriptionGetDimensions(device.activeFormat.formatDescription)
                 let w = CGFloat(min(dims.width, dims.height))
@@ -260,9 +261,15 @@ class CameraViewModel: NSObject, ObservableObject {
             //   （Apple 原相机的做法，避免 87° TrueDepth 超广角透视拉伸）
             // - 后摄：保持标准 preset（.photo / .hd1920x1080）
             let switchingToFront = !currentlyFront
-            if switchingToFront {
+            // 前摄 + 视频模式：用 .inputPriority 手动选窄 FOV format（防超广角畸变）
+            // 前摄 + 照片模式：保持 .photo preset（iOS 自己选最佳 4:3 format，不干涉）
+            if switchingToFront && self.isVideoMode {
                 if self.session.canSetSessionPreset(.inputPriority) {
                     self.session.sessionPreset = .inputPriority
+                }
+            } else if switchingToFront && !self.isVideoMode {
+                if self.session.canSetSessionPreset(.photo) {
+                    self.session.sessionPreset = .photo
                 }
             } else if self.isVideoMode {
                 if self.session.canSetSessionPreset(.hd1920x1080) {
@@ -279,34 +286,35 @@ class CameraViewModel: NSObject, ObservableObject {
             self.visionService.isFrontCamera = !currentlyFront
             self.session.commitConfiguration()
 
-            // 切换后重新固定 videoOrientation 及镜像（commitConfiguration 后 connection 仍存在）
             let isFront = !currentlyFront
+
+            // ── 关键时序：format 选择必须在 orientation 设置之前 ──
+            // selectOptimalFrontFormat 会 lockForConfig 改 activeFormat
+            // 改完之后 connection 的 videoOrientation 可能被 reset 回默认
+            // 所以 orientation + mirroring 必须放在 format 选择之后
+
+            // Step 1: 前摄+视频模式才选窄 FOV format（照片模式 .photo preset 已自带适配）
+            if isFront && self.isVideoMode {
+                self.selectOptimalFrontFormat(for: newDevice)
+            }
+            self.applyGeometricDistortionCorrectionIfSupported(to: newDevice)
+
+            // Step 2: 设定 orientation 和 mirroring（必须在 format 选择后）
             if let conn = self.videoDataOutput.connection(with: .video) {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
-            // ✅ movieOutput 强制用 videoOrientation 旧 API
             if let conn = self.movieOutput.connection(with: .video) {
                 self.setMovieOutputPortrait(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = isFront }
             }
-            // ✅ photoOutput 同步镜像状态：前置拍照保存非镜像（与苹果原相机一致）
             if let conn = self.photoOutput.connection(with: .video) {
                 self.setPortraitOrientation(conn)
                 if conn.isVideoMirroringSupported { conn.isVideoMirrored = false }
             }
 
-            // 切换后重新发布实际宽高比（前/后摄 activeFormat 可能不同）
+            // Step 3: 发布宽高比（必须在 format 选择后才能读到正确值）
             self.updatePreviewAspectRatio()
-
-            // 前摄抗畸变三层组合拳：
-            // 1) activeFormat 选窄 FOV（H2 主修复，inputPriority 模式下生效）
-            // 2) 几何畸变校正 GDC（软件桶形畸变补偿，~50% format 支持）
-            // 3) 如果 format 选择失败，2.0x zoom 作为 fallback
-            if isFront {
-                self.selectOptimalFrontFormat(for: newDevice)
-            }
-            self.applyGeometricDistortionCorrectionIfSupported(to: newDevice)
 
             // zoom 策略：前摄若 selectOptimalFrontFormat 成功（已窄 FOV）→ 1.0x
             //           否则 → 2.0x fallback
