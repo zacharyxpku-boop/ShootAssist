@@ -184,8 +184,9 @@ struct PhotoModeView: View {
                         Color.white.opacity(0.85).ignoresSafeArea().transition(.opacity)
                     }
                 }
-                // 用 session 实际宽高比，前后摄 activeFormat 可能不同
-                .aspectRatio(cameraVM.previewAspectRatio, contentMode: .fit)
+                // 不加 .aspectRatio — 让 CameraPreviewView 用 resizeAspectFill 自行铺满容器
+                // 之前 .aspectRatio(previewAspectRatio) 在前后摄 format 不同时
+                // 给 SwiftUI 容器错误尺寸，导致预览被拉伸
                 .clipShape(RoundedRectangle(cornerRadius: 12))
                 .padding(.horizontal, 2)
 

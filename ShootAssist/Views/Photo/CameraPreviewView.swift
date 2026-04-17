@@ -12,10 +12,11 @@ struct CameraPreviewView: UIViewRepresentable {
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
         view.previewLayer.session = session
-        // .resizeAspect = 等比显示全部内容，容器不足的部分留黑边
-        // 绝不拉伸绝不裁切，是前置摄像头变形问题的唯一彻底解法
-        // 付出的代价是上下/左右可能有黑边，但与系统相机照片模式 UX 一致
-        view.previewLayer.videoGravity = .resizeAspect
+        // .resizeAspectFill = 等比缩放填满容器，溢出部分裁切
+        // 这是 Apple 原生相机的做法：preserves aspect ratio, crops overflow
+        // 不可能拉伸变形，因为 aspectFill 按定义保持宽高比
+        // 之前用 .resizeAspect 导致容器与画面比例不匹配时出现拉伸假象
+        view.previewLayer.videoGravity = .resizeAspectFill
         view.backgroundColor = .black
         view.onTapToFocus = onTapToFocus
         return view
@@ -25,9 +26,9 @@ struct CameraPreviewView: UIViewRepresentable {
         uiView.previewLayer.session = session
         uiView.onTapToFocus = onTapToFocus
         // Defense-in-depth: 每次 SwiftUI 刷新都重新 assert videoGravity
-        // 防止任何外部代码意外改成 resizeAspectFill 导致拉伸
-        if uiView.previewLayer.videoGravity != .resizeAspect {
-            uiView.previewLayer.videoGravity = .resizeAspect
+        // 必须始终保持 resizeAspectFill（Apple 原生相机默认行为）
+        if uiView.previewLayer.videoGravity != .resizeAspectFill {
+            uiView.previewLayer.videoGravity = .resizeAspectFill
         }
     }
 }
