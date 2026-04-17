@@ -35,7 +35,7 @@ struct PhotoModeView: View {
                         .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                     Spacer()
                     Button(action: { showPoseGuide = true }) {
-                        Image(systemName: "figure.arms.open")
+                        Image(systemName: "figure.stand")  // iOS 16 safe
                             .font(.system(size: 16)).foregroundColor(.white)
                             .frame(width: 44, height: 44)
                     }

@@ -26,7 +26,7 @@ let poseDatabase: [PoseCategory] = [
         PoseData(name: "侧脸45度", description: "脸侧向一边约45度，展示轮廓", tips: ["靠近镜头的眼睛稍微看镜头", "下颌线要清晰", "可以用手轻托下巴"], difficulty: 1, bestFor: "自拍、朋友圈", cameraAngle: "平视或微俯", icon: "person.fill"),
         PoseData(name: "手托下巴", description: "单手轻托下巴，显脸小", tips: ["手指自然弯曲", "别用力压脸", "眼神看远处更有意境"], difficulty: 1, bestFor: "咖啡厅、餐厅", cameraAngle: "平视", icon: "hand.raised"),
         PoseData(name: "撩头发", description: "一只手撩起耳边头发", tips: ["动作要慢，用连拍抓", "眼睛可以微闭", "笑容自然最好看"], difficulty: 2, bestFor: "户外、逆光", cameraAngle: "微仰10°", icon: "wind"),
-        PoseData(name: "叉腰自信", description: "单手或双手叉腰", tips: ["手肘往后推，显腰细", "身体微侧", "挺胸收腹"], difficulty: 1, bestFor: "穿搭展示", cameraAngle: "平视", icon: "figure.arms.open"),
+        PoseData(name: "叉腰自信", description: "单手或双手叉腰", tips: ["手肘往后推，显腰细", "身体微侧", "挺胸收腹"], difficulty: 1, bestFor: "穿搭展示", cameraAngle: "平视", icon: "figure.stand"),
     ]),
     PoseCategory(name: "全身照", icon: "🧍‍♀️", poses: [
         PoseData(name: "走路抓拍", description: "自然走路，用连拍捕捉", tips: ["大步走，手臂自然摆", "看远处，别看镜头", "身体微侧最好看"], difficulty: 2, bestFor: "街拍、旅行", cameraAngle: "微仰5°", icon: "figure.walk"),
