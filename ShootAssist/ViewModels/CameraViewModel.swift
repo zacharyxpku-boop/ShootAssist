@@ -319,8 +319,11 @@ class CameraViewModel: NSObject, ObservableObject {
             // zoom 策略：前摄若 selectOptimalFrontFormat 成功（已窄 FOV）→ 1.0x
             //           否则 → 2.0x fallback
             // 判定依据：activeFormat 的 FOV ≤ 75 认为 format 选择成功
-            let formatSuccess = isFront && newDevice.activeFormat.videoFieldOfView <= 75
-            let targetZoom: CGFloat = (isFront && !formatSuccess) ? 2.0 : 1.0
+            // zoom 策略：
+            // - 视频模式前摄：selectOptimalFrontFormat 成功 → 1.0x，失败 → 2.0x fallback
+            // - 照片模式前摄/后摄：始终 1.0x，不干涉系统默认行为
+            let formatSuccess = isFront && self.isVideoMode && newDevice.activeFormat.videoFieldOfView <= 75
+            let targetZoom: CGFloat = (isFront && self.isVideoMode && !formatSuccess) ? 2.0 : 1.0
             do {
                 try newDevice.lockForConfiguration()
                 let clampedZoom = min(max(targetZoom, 1.0), newDevice.maxAvailableVideoZoomFactor)
