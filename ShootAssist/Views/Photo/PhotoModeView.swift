@@ -110,6 +110,7 @@ struct PhotoModeView: View {
                                         .foregroundColor(.white.opacity(0.7))
                                         .font(.system(size: 16))
                                 }
+                                .accessibilityLabel("关闭 Pose 指引")
                             }
                             Text(pose.description)
                                 .font(.system(size: 11))
