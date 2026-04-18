@@ -82,9 +82,13 @@ struct PhotoOverlayView: View {
 
                 // =========== 拍同款模式（拍摄阶段）===========
                 if subMode == .influencerClone && isShootingPhase {
-                    // 1. 参考轮廓（关键点驱动的半透明粉色剪影）
+                    // 1. 参考轮廓（关键点驱动的半透明粉色剪影）- 支持拖拽+捏合
                     if !referenceJoints.isEmpty {
-                        ReferenceSilhouetteView(joints: referenceJoints, viewSize: geo.size, jointSources: referenceJointSources)
+                        InteractiveReferenceSilhouette(
+                            joints: referenceJoints,
+                            viewSize: geo.size,
+                            jointSources: referenceJointSources
+                        )
                     } else {
                         // 没有关键点时显示通用占位虚影
                         GhostSilhouetteView()

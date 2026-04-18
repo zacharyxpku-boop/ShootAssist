@@ -114,7 +114,6 @@ class PhotoModeViewModel: ObservableObject {
                 if advice.isCutOff {
                     self.showSafetyWarning = true
                     self.safetyWarningText = advice.tips.first(where: { $0.contains("⚠️") }) ?? "注意构图"
-                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
                         self?.showSafetyWarning = false
                     }

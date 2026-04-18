@@ -478,7 +478,6 @@ class CameraViewModel: NSObject, ObservableObject {
                 self?.triggerShutter()
             }
         }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
     private func triggerShutter() {
@@ -488,7 +487,6 @@ class CameraViewModel: NSObject, ObservableObject {
         }
         DispatchQueue.main.async { [weak self] in
             self?.showFlash = true
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
                 withAnimation(.easeOut(duration: 0.3)) { self?.showFlash = false }
             }

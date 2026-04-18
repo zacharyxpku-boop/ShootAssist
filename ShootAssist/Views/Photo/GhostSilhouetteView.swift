@@ -119,3 +119,112 @@ struct ReferenceSilhouetteView: View {
         .allowsHitTesting(false)
     }
 }
+
+// MARK: - 可交互参考轮廓（拖拽平移 + 捏合缩放，只在骨架包围盒内响应手势）
+struct InteractiveReferenceSilhouette: View {
+    let joints: [VNHumanBodyPoseObservation.JointName: CGPoint]
+    let viewSize: CGSize
+    var jointSources: [VNHumanBodyPoseObservation.JointName: JointSource] = [:]
+
+    @State private var offset: CGSize = .zero
+    @State private var accumOffset: CGSize = .zero
+    @State private var scale: CGFloat = 1.0
+    @State private var accumScale: CGFloat = 1.0
+
+    // 关键点在 viewSize 坐标系下的外接矩形（头圆在 neck 上方约 38pt，加描边余量）
+    private var boundingBox: CGRect {
+        let pts = joints.values.map {
+            CGPoint(x: $0.x * viewSize.width, y: (1 - $0.y) * viewSize.height)
+        }
+        guard !pts.isEmpty,
+              let minX = pts.map(\.x).min(),
+              let maxX = pts.map(\.x).max(),
+              let minY = pts.map(\.y).min(),
+              let maxY = pts.map(\.y).max() else {
+            return CGRect(x: 0, y: 0, width: max(viewSize.width, 1), height: max(viewSize.height, 1))
+        }
+        return CGRect(
+            x: minX - 30,
+            y: minY - 55,
+            width: (maxX - minX) + 60,
+            height: (maxY - minY) + 80
+        )
+    }
+
+    // scaleEffect 以骨架中心为锚点，缩放不会漂移
+    private var anchor: UnitPoint {
+        guard viewSize.width > 0, viewSize.height > 0 else { return .center }
+        return UnitPoint(
+            x: min(max(boundingBox.midX / viewSize.width, 0), 1),
+            y: min(max(boundingBox.midY / viewSize.height, 0), 1)
+        )
+    }
+
+    // 用几个固定关键点做指纹 —— 同一张参考图多次渲染指纹稳定，换图必变
+    // （字典迭代顺序不稳定，所以查 nose/neck/root 而不是 joints.first）
+    private var referenceFingerprint: Int {
+        let keys: [VNHumanBodyPoseObservation.JointName] = [.nose, .neck, .root, .leftShoulder, .rightShoulder]
+        var h = 0
+        for (i, k) in keys.enumerated() {
+            let p = joints[k] ?? .zero
+            h &+= Int(p.x * 100_000) &* (i + 1) &+ Int(p.y * 100_000) &* (i + 2)
+        }
+        return h &+ joints.count &* 10_000_000
+    }
+
+    var body: some View {
+        ZStack {
+            // 可视骨架（内部 Canvas 自带 allowsHitTesting(false)，不参与命中）
+            ReferenceSilhouetteView(
+                joints: joints,
+                viewSize: viewSize,
+                jointSources: jointSources
+            )
+
+            // 显式命中视图：替代 .contentShape + allowsHitTesting 子视图组合
+            // 用带实色填充的 Rectangle（opacity=0.001 视觉不可见但参与 hit-test）
+            // 这样骨架外的屏幕区域自然 pass through 到下方相机预览（tap-to-focus 不受影响）
+            Rectangle()
+                .fill(Color.black.opacity(0.001))
+                .frame(
+                    width: max(boundingBox.width, 1),
+                    height: max(boundingBox.height, 1)
+                )
+                .position(x: boundingBox.midX, y: boundingBox.midY)
+        }
+        .frame(width: viewSize.width, height: viewSize.height)
+        .scaleEffect(scale, anchor: anchor)
+        .offset(offset)
+        // 手势挂在最外层（scaleEffect/offset 之后），translation 在屏幕坐标系，1:1 跟手
+        // ZStack 只有内层 Rectangle 是 hit-testable，骨架外空白会 pass-through，不会触发此手势
+        .gesture(
+            SimultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        offset = CGSize(
+                            width: accumOffset.width + value.translation.width,
+                            height: accumOffset.height + value.translation.height
+                        )
+                    }
+                    .onEnded { _ in
+                        accumOffset = offset
+                    },
+                MagnificationGesture()
+                    .onChanged { value in
+                        let next = accumScale * value
+                        scale = min(max(next, 0.3), 3.5)
+                    }
+                    .onEnded { _ in
+                        accumScale = scale
+                    }
+            )
+        )
+        // 换参考图时把 offset/scale 清零 —— 避免旧状态把新骨架推到屏幕外
+        .onChange(of: referenceFingerprint) { _ in
+            offset = .zero
+            accumOffset = .zero
+            scale = 1.0
+            accumScale = 1.0
+        }
+    }
+}

@@ -259,7 +259,6 @@ class VideoModeViewModel: ObservableObject {
                 self.countdownValue -= 1
                 if self.countdownValue <= 0 {
                     timer.invalidate(); self.countdownTimer = nil; self.isCountingDown = false
-                    UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                     completion()
                 }
             }
