@@ -92,15 +92,23 @@ class VideoModeViewModel: ObservableObject {
         pipAudioEnabled = false
     }
 
-    /// 切到 .playAndRecord，让 PiP AVPlayer 在录制期间也能出声
+    /// 切到 .playAndRecord，让 PiP AVPlayer 在录制期间也能出声。
+    /// 幂等：若当前 category/mode/options 已一致就跳过 setCategory，避免 AVCaptureSession
+    /// 正在跑时 setCategory 触发 AVCaptureSessionWasInterrupted 通知（系统把它当成
+    /// audioDeviceInUseByAnotherClient），导致录制中音频突然静音或 session 自重启。
     private func activatePlaybackRecordSession() {
+        let session = AVAudioSession.sharedInstance()
+        let wantCategory: AVAudioSession.Category = .playAndRecord
+        let wantMode: AVAudioSession.Mode = .videoRecording
+        let wantOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
+        let alreadyCorrect = session.category == wantCategory
+            && session.mode == wantMode
+            && session.categoryOptions == wantOptions
         do {
-            try AVAudioSession.sharedInstance().setCategory(
-                .playAndRecord,
-                mode: .videoRecording,
-                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
-            )
-            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+            if !alreadyCorrect {
+                try session.setCategory(wantCategory, mode: wantMode, options: wantOptions)
+            }
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             saLog("[VideoMode] activatePlaybackRecordSession failed: \(error)")
         }
@@ -185,13 +193,16 @@ class VideoModeViewModel: ObservableObject {
 
     func startLipSyncAudio() {
         guard let url = customMusicURL else { return }
+        // 同 activatePlaybackRecordSession 的幂等思路：若 AVCaptureSession 正在跑，
+        // mid-flight setCategory 会触发 interruption 导致录制音频异常
+        let session = AVAudioSession.sharedInstance()
+        let wantCategory: AVAudioSession.Category = .playAndRecord
+        let wantOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
         do {
-            try AVAudioSession.sharedInstance().setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
-            )
-            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
+            if session.category != wantCategory || session.categoryOptions != wantOptions {
+                try session.setCategory(wantCategory, mode: .default, options: wantOptions)
+            }
+            try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch { return }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }

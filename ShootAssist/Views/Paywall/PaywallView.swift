@@ -102,9 +102,28 @@ struct PaywallView: View {
                         // MARK: 产品卡片
                         VStack(spacing: 10) {
                             if subManager.products.isEmpty {
-                                ProgressView()
-                                    .tint(Color(hex: "FF85A1"))
-                                    .frame(height: 60)
+                                if let loadError = subManager.loadError {
+                                    // 两轮加载都失败：停止转圈，给明确重试入口，避免 Paywall 永远 spinner
+                                    VStack(spacing: 10) {
+                                        Text(loadError)
+                                            .font(.system(size: 13))
+                                            .foregroundColor(Color(hex: "8B6E75"))
+                                            .multilineTextAlignment(.center)
+                                            .fixedSize(horizontal: false, vertical: true)
+                                        Button("重新加载") {
+                                            Task { await subManager.loadProducts() }
+                                        }
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20).padding(.vertical, 8)
+                                        .background(Capsule().fill(Color(hex: "FF85A1")))
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                } else {
+                                    ProgressView()
+                                        .tint(Color(hex: "FF85A1"))
+                                        .frame(height: 60)
+                                }
                             } else {
                                 ForEach(subManager.products, id: \.id) { product in
                                     ProProductCard(

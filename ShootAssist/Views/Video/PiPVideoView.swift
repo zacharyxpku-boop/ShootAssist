@@ -84,6 +84,10 @@ class PiPPlayerUIView: UIView {
 
     /// 替换播放源（用户换参考视频时调用）
     func replaceSource(url: URL) {
+        // 先 pause 再换：旧 item 仍在解码的状态下直接 replaceCurrentItem，旧 item
+        // 残留的 decode/render 资源释放窗口内若 didReachEnd 通知已在队列中排队，
+        // 即使 guard `endedItem === playerItem` 会挡住，也浪费 CPU/带宽
+        player?.pause()
         // 先移除旧 item 的 notification observer
         if let oldItem = playerItem {
             NotificationCenter.default.removeObserver(

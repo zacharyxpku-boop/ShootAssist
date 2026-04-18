@@ -21,7 +21,9 @@ targets:
     resources:
       - path: ShootAssist/Assets.xcassets
       - path: ShootAssist/PrivacyInfo.xcprivacy
-      - path: ShootAssist/ShootAssist.storekit
+      # ShootAssist.storekit 仅开发期 StoreKit Testing 使用，不打进 Release bundle。
+      # 要用本地沙盒配置时，在 Xcode Scheme → Run → Options → StoreKit Configuration
+      # 里手动选择该文件；不放到 resources 避免 App Review 扫到开发配置文件拒审。
     settings:
       INFOPLIST_FILE: ShootAssist/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: com.shootassist.mobile

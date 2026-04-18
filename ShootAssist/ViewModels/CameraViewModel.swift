@@ -138,11 +138,10 @@ class CameraViewModel: NSObject, ObservableObject {
             self?.isSessionInterrupted = true
             self?.isSessionRunning = false
         }
-        // 录制中被打断 → 立即收尾，防止写入半截坏 mov
-        if isRecording {
-            sessionQueue.async { [weak self] in
-                self?.movieOutput.stopRecording()
-            }
+        // 录制中被打断 → 立即收尾。stopRecording 是幂等的，哪怕不在录也安全，
+        // 避免 isRecording 读取时机竞态导致半截 mov 写入失败
+        sessionQueue.async { [weak self] in
+            self?.movieOutput.stopRecording()
         }
     }
 
@@ -309,11 +308,13 @@ class CameraViewModel: NSObject, ObservableObject {
         guard !isSwitchingCamera else { return }  // 防抖：正在切换时拒绝第二次点击
         isSwitchingCamera = true
         let currentlyFront = isFrontCamera  // 主线程捕获，避免后台线程读脏值
+        // 复位工具：任何退出路径（包括 self=nil）都必须走这里，否则按钮永久置灰
+        let resetFlag: () -> Void = { [weak self] in
+            DispatchQueue.main.async { self?.isSwitchingCamera = false }
+        }
         sessionQueue.async { [weak self] in
-            guard let self else { return }
-            defer {
-                DispatchQueue.main.async { self.isSwitchingCamera = false }
-            }
+            guard let self else { resetFlag(); return }
+            defer { resetFlag() }
             self.session.beginConfiguration()
 
             for input in self.session.inputs {
@@ -686,9 +687,16 @@ class CameraViewModel: NSObject, ObservableObject {
 
     func stopRecording() {
         guard isRecording else { return }
-        movieOutput.stopRecording()
+        // movieOutput 与所有 session mutation 同走 sessionQueue，
+        // 跨线程调 stopRecording 在 iOS 16 某些机型观察到 session 配置竞态崩溃
         recordingTimer?.invalidate(); recordingTimer = nil
-        DispatchQueue.main.async { [weak self] in self?.isRecording = false }
+        sessionQueue.async { [weak self] in
+            self?.movieOutput.stopRecording()
+        }
+        // 注意：isRecording = false 不在这里设，要等 fileOutput(_:didFinishRecordingTo:...)
+        // 回调里移交给 didFinish，否则用户可能在半秒写尾期间点「切换摄像头」导致
+        // switchCamera 的 guard !isRecording 放行，session reconfigure 与写文件同步
+        // 进行 → 半截坏 mov
     }
 
     func stopSession() {
@@ -754,12 +762,14 @@ class CameraViewModel: NSObject, ObservableObject {
                     if success {
                         self?.showToast = true
                         self?.lastCapturedVideoURL = url
+                        // 注：视频 URL 保留用于分享，launch 时 cleanTempFiles 兜底清理
                     } else {
                         self?.saveErrorMessage = "视频没能存进相册，检查一下相册空间再试试"
                         self?.showSaveError = true
+                        // 失败路径立即清理 tmp，否则累积录制失败 → 磁盘塞满 → 后续录制无法写入
+                        try? FileManager.default.removeItem(at: url)
                     }
                 }
-                // 注：视频 URL 保留用于分享，分享后由调用方清理
             }
         }
     }
@@ -803,14 +813,27 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput,
                     didFinishRecordingTo outputFileURL: URL,
                     from connections: [AVCaptureConnection], error: Error?) {
+        // 录制真正结束的瞬间才把 isRecording 置 false，stopRecording() 里不动
+        // 这样 switchCamera 的 guard !isRecording 在文件关闭前保持锁定，杜绝写-切并发
+        DispatchQueue.main.async { [weak self] in
+            self?.isRecording = false
+        }
         if let error = error {
             saLog("[VideoRecording] error: \(error.localizedDescription)")
         }
-        guard FileManager.default.fileExists(atPath: outputFileURL.path) else { return }
+        guard FileManager.default.fileExists(atPath: outputFileURL.path) else {
+            // 写失败就没有文件可保存，直接返回；session 中断时写的半截文件系统已经清理过
+            return
+        }
 
         // 终极保险：检查视频 track 的实际方向，如果是横屏就用 AVMutableComposition 修正
         Task {
             let correctedURL = await Self.ensurePortraitOrientation(fileURL: outputFileURL)
+            // 如果 ensurePortraitOrientation 生成了新的 corrected 文件，原 outputFileURL
+            // 应当删除避免累积 tmp 吃光磁盘；两者路径相同代表走 fallback 无新文件
+            if correctedURL != outputFileURL {
+                try? FileManager.default.removeItem(at: outputFileURL)
+            }
             await MainActor.run { [weak self] in
                 self?.saveVideoToLibrary(url: correctedURL)
             }

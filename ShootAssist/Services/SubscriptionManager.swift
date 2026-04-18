@@ -16,6 +16,8 @@ final class SubscriptionManager: ObservableObject {
     @Published var products: [Product] = []    // 按月价升序：monthly → annual
     @Published var isPurchasing = false
     @Published var purchaseError: String? = nil
+    /// 两轮 loadProducts 都失败后的用户可见错误；Paywall 需要读这个给「重试」按钮
+    @Published var loadError: String? = nil
 
     private var transactionListener: Task<Void, Error>?
 
@@ -32,6 +34,7 @@ final class SubscriptionManager: ObservableObject {
     // MARK: - 加载产品列表
 
     func loadProducts() async {
+        loadError = nil
         do {
             let fetched = try await Product.products(for: productIDs)
             // 月价从低到高排序，使月订阅在前、年订阅在后
@@ -46,6 +49,8 @@ final class SubscriptionManager: ObservableObject {
                 products = fetched.sorted { $0.price < $1.price }
             } catch {
                 saLog("[StoreKit] retry also failed: \(error.localizedDescription)")
+                // 两次都失败：给 UI 一个可见错误信号，避免 Paywall 永远 spinner
+                loadError = "订阅信息加载失败，请检查网络后点击重试"
             }
         }
     }
@@ -63,6 +68,9 @@ final class SubscriptionManager: ObservableObject {
             case .success(let verification):
                 let transaction = try checkVerified(verification)
                 await transaction.finish()
+                // 已经 verified 的 tx 就是 Pro；先乐观置位，再让 refreshStatus 作为补偿校验。
+                // 避免 refreshStatus 读 entitlements 时若网络抖动返回空，用户钱扣了但 Pro 未解锁。
+                isPro = true
                 await refreshStatus()
                 let plan = product.id.contains("annual") ? "annual" : "monthly"
                 Analytics.track(Analytics.Event.subscriptionPurchased, properties: ["plan": plan])
@@ -118,9 +126,11 @@ final class SubscriptionManager: ObservableObject {
     private func listenForTransactions() -> Task<Void, Error> {
         Task.detached(priority: .background) { [weak self] in
             for await result in Transaction.updates {
-                guard let self else { return }
+                // self 临时为 nil 不代表 manager 死了（可能 GC 未完成）— 用 continue 保住循环，
+                // deinit 会真正 cancel 这个 task，届时 for-await 会因 Cancellation 自然退出。
+                // 若改成 return 一旦 self 短暂 nil 就永久丢续费/退款事件，漏钱风险。
                 if case .verified(let tx) = result { await tx.finish() }
-                await self.refreshStatus()
+                await self?.refreshStatus()
             }
         }
     }
