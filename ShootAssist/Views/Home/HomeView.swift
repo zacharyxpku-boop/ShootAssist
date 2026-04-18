@@ -395,6 +395,7 @@ struct SettingsView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.midBerryBrown)
                         .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 } header: {
                     Text("邀请好友")
                 }

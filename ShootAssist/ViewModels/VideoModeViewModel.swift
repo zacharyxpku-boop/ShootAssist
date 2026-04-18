@@ -102,7 +102,7 @@ class VideoModeViewModel: ObservableObject {
             )
             try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
-            print("[VideoMode] activatePlaybackRecordSession failed: \(error)")
+            saLog("[VideoMode] activatePlaybackRecordSession failed: \(error)")
         }
     }
 
@@ -151,7 +151,7 @@ class VideoModeViewModel: ObservableObject {
                 if let url = audioURL {
                     self.importCustomAudio(url: url)
                 } else {
-                    self.lyricRecognitionError = "视频音频提取失败，请换一个视频文件"
+                    self.lyricRecognitionError = "无法读取这个视频的音频，换一个带音乐的视频试试"
                 }
             }
         }

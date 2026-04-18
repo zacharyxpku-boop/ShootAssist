@@ -6,20 +6,22 @@ struct VideoModeView: View {
     @StateObject private var videoVM = VideoModeViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var baseZoomLevel: CGFloat = 1.0
+    @State private var showShareSheet: Bool = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // MARK: - 顶部导航（精简内嵌式）
+                // MARK: - 顶部导航（精简内嵌式，命中区扩到 HIG 44×44）
                 HStack(spacing: 12) {
                     Button(action: { dismiss() }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("返回")
                     Spacer()
 
                     // 导入参考视频
@@ -33,7 +35,9 @@ struct VideoModeView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(Capsule().fill(Color.white.opacity(0.15)))
+                        .frame(minHeight: 44)
                     }
+                    .accessibilityLabel(videoVM.referenceVideoURL != nil ? "更换参考视频" : "导入参考视频")
 
                     // 前后摄切换
                     Button(action: { cameraVM.switchCamera() }) {
@@ -42,7 +46,9 @@ struct VideoModeView: View {
                             .foregroundColor(.white)
                             .frame(width: 32, height: 32)
                             .background(Circle().fill(Color.white.opacity(0.1)))
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("切换摄像头")
 
                     // 闪光灯
                     Button(action: { cameraVM.toggleFlash() }) {
@@ -51,9 +57,11 @@ struct VideoModeView: View {
                             .foregroundColor(.white)
                             .frame(width: 32, height: 32)
                             .background(Circle().fill(Color.white.opacity(0.1)))
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("闪光灯")
                 }
-                .padding(.horizontal, 12).padding(.vertical, 6)
+                .padding(.horizontal, 12).padding(.vertical, 2)
 
                 // MARK: - 相机预览 + PiP
                 ZStack {
@@ -130,7 +138,10 @@ struct VideoModeView: View {
                             .font(.system(size: 11, weight: .medium)).foregroundColor(.white)
                             .frame(width: 30, height: 30)
                             .background(Circle().fill(Color.white.opacity(0.12)))
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("延时拍摄")
+                    .accessibilityValue(videoVM.selectedDelay.label)
                     Spacer()
 
                     // 录制按钮
@@ -154,13 +165,29 @@ struct VideoModeView: View {
 
                     Spacer()
 
+                    // 分享最近一条（录制结束且已保存后出现）
+                    if cameraVM.lastCapturedVideoURL != nil {
+                        Button(action: { showShareSheet = true }) {
+                            Image(systemName: "square.and.arrow.up")
+                                .font(.system(size: 14)).foregroundColor(.white)
+                                .frame(width: 30, height: 30)
+                                .background(Circle().fill(Color.white.opacity(0.18)))
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("分享最近一条")
+                    } else {
+                        Color.clear.frame(width: 44, height: 44)
+                    }
+
                     // 前后摄（底部备用入口）
                     Button(action: { cameraVM.switchCamera() }) {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.system(size: 13)).foregroundColor(.white)
                             .frame(width: 30, height: 30)
                             .background(Circle().fill(Color.white.opacity(0.12)))
+                            .frame(width: 44, height: 44)
                     }
+                    .accessibilityLabel("切换摄像头")
                 }
                 .padding(.horizontal, 40).padding(.vertical, 12)
             }
@@ -197,6 +224,11 @@ struct VideoModeView: View {
         // movieOutput 真正开始写文件的瞬间才同步 PiP — 消除 startRecording() 异步派发引起的时差
         .onChange(of: cameraVM.recordingStartToken) { _ in
             videoVM.startPiPPlaybackSynced()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if let url = cameraVM.lastCapturedVideoURL {
+                ShareSheet(items: [url])
+            }
         }
     }
 
@@ -274,7 +306,10 @@ private struct PermissionDeniedOverlay: View {
         VStack(spacing: 16) {
             Image(systemName: "camera.fill").font(.system(size: 40)).foregroundColor(.gray)
             Text("需要相机权限").font(.system(size: 16, weight: .medium)).foregroundColor(.white)
-            Text("请在设置中允许小白快门访问相机").font(.system(size: 13)).foregroundColor(.gray)
+            Text("请在设置中允许小白快门访问相机")
+                .font(.system(size: 13)).foregroundColor(.gray)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button("打开设置") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)

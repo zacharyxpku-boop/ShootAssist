@@ -37,12 +37,21 @@ class CameraViewModel: NSObject, ObservableObject {
     private var recordingTimer: Timer?
     private var tempVideoURL: URL?
 
+    /// 最近一次拍照的 JPEG data（分享按钮用）
+    @Published var lastCapturedPhotoData: Data?
+    /// 最近一次录制成功的视频 URL（分享按钮用）
+    @Published var lastCapturedVideoURL: URL?
+
     var isVideoMode = false
     private var isCapturingPhoto = false
     /// Vision 分析开关：output 始终挂载，通过此 flag 在 delegate 中过滤
     var enableVisionAnalysis = true
     private var isConfigured = false
     private var focusResetWorkItem: DispatchWorkItem?
+    /// switchCamera 防抖：切换中拒绝第二次点击，避免 session 重复配置崩溃
+    private var isSwitchingCamera = false
+    /// session 被系统打断（来电/后台/分屏/息屏等），监听到 ended 时重新 startRunning
+    @Published var isSessionInterrupted = false
 
     /// 设置 connection 为竖屏方向（兼容 iOS 16 和 iOS 17+）
     /// ⚠️ 仅用于 photoOutput / videoDataOutput。movieOutput 必须用下面的专用方法。
@@ -96,9 +105,72 @@ class CameraViewModel: NSObject, ObservableObject {
         }
     }
 
-    override init() { super.init() }
+    override init() {
+        super.init()
+        registerSessionInterruptionObservers()
+    }
 
-    deinit { recordingTimer?.invalidate() }
+    deinit {
+        recordingTimer?.invalidate()
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    // MARK: - Session 中断处理（来电/后台/分屏/息屏）
+
+    private func registerSessionInterruptionObservers() {
+        let nc = NotificationCenter.default
+        nc.addObserver(self,
+                       selector: #selector(sessionWasInterrupted(_:)),
+                       name: .AVCaptureSessionWasInterrupted,
+                       object: session)
+        nc.addObserver(self,
+                       selector: #selector(sessionInterruptionEnded(_:)),
+                       name: .AVCaptureSessionInterruptionEnded,
+                       object: session)
+        nc.addObserver(self,
+                       selector: #selector(sessionRuntimeError(_:)),
+                       name: .AVCaptureSessionRuntimeError,
+                       object: session)
+    }
+
+    @objc private func sessionWasInterrupted(_ note: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.isSessionInterrupted = true
+            self?.isSessionRunning = false
+        }
+        // 录制中被打断 → 立即收尾，防止写入半截坏 mov
+        if isRecording {
+            sessionQueue.async { [weak self] in
+                self?.movieOutput.stopRecording()
+            }
+        }
+    }
+
+    @objc private func sessionInterruptionEnded(_ note: Notification) {
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
+            DispatchQueue.main.async {
+                self.isSessionInterrupted = false
+                self.isSessionRunning = self.session.isRunning
+            }
+        }
+    }
+
+    @objc private func sessionRuntimeError(_ note: Notification) {
+        // AVCaptureSession 运行时错误 → 尝试恢复
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            if !self.session.isRunning {
+                self.session.startRunning()
+            }
+            DispatchQueue.main.async {
+                self.isSessionRunning = self.session.isRunning
+            }
+        }
+    }
 
     // MARK: - 权限
 
@@ -234,9 +306,14 @@ class CameraViewModel: NSObject, ObservableObject {
 
     func switchCamera() {
         guard !isRecording else { return }  // 录制中禁止切换，防止 session 配置崩溃
+        guard !isSwitchingCamera else { return }  // 防抖：正在切换时拒绝第二次点击
+        isSwitchingCamera = true
         let currentlyFront = isFrontCamera  // 主线程捕获，避免后台线程读脏值
         sessionQueue.async { [weak self] in
             guard let self else { return }
+            defer {
+                DispatchQueue.main.async { self.isSwitchingCamera = false }
+            }
             self.session.beginConfiguration()
 
             for input in self.session.inputs {
@@ -383,7 +460,7 @@ class CameraViewModel: NSObject, ObservableObject {
             device.isGeometricDistortionCorrectionEnabled = true
             device.unlockForConfiguration()
         } catch {
-            print("[Camera] GDC enable failed: \(error)")
+            saLog("[Camera] GDC enable failed: \(error)")
         }
     }
 
@@ -418,7 +495,7 @@ class CameraViewModel: NSObject, ObservableObject {
             let bDims = CMVideoFormatDescriptionGetDimensions(b.formatDescription)
             return (Int(aDims.width) * Int(aDims.height)) > (Int(bDims.width) * Int(bDims.height))
         }) else {
-            print("[Camera] ⚠️ No suitable narrow-FOV format for front camera, falling back to default")
+            saLog("[Camera] ⚠️ No suitable narrow-FOV format for front camera, falling back to default")
             return
         }
 
@@ -431,9 +508,9 @@ class CameraViewModel: NSObject, ObservableObject {
             device.activeVideoMaxFrameDuration = target
             device.unlockForConfiguration()
             let dims = CMVideoFormatDescriptionGetDimensions(best.formatDescription)
-            print("[Camera] ✅ Front format: \(dims.width)x\(dims.height) FOV=\(best.videoFieldOfView)°")
+            saLog("[Camera] ✅ Front format: \(dims.width)x\(dims.height) FOV=\(best.videoFieldOfView)°")
         } catch {
-            print("[Camera] selectOptimalFrontFormat lock failed: \(error)")
+            saLog("[Camera] selectOptimalFrontFormat lock failed: \(error)")
         }
     }
 
@@ -447,7 +524,7 @@ class CameraViewModel: NSObject, ObservableObject {
         let gravity = previewLayer?.videoGravity.rawValue ?? "nil"
         let ratio = self.previewAspectRatio
 
-        print("""
+        saLog("""
 
         ╔══════════════════════════════════════════════════════════════
         ║ [FrontCameraDiagnostics]
@@ -632,7 +709,7 @@ class CameraViewModel: NSObject, ObservableObject {
             guard let self else { return }
             guard status == .authorized || status == .limited else {
                 DispatchQueue.main.async {
-                    self.saveErrorMessage = "请在「设置」中允许访问相册"
+                    self.saveErrorMessage = "需要相册权限才能保存，请在「设置」中开启"
                     self.showSaveError = true
                 }
                 return
@@ -648,9 +725,10 @@ class CameraViewModel: NSObject, ObservableObject {
                         let newTotal = UserDefaults.standard.integer(forKey: "totalPhotosSaved") + 1
                         UserDefaults.standard.set(newTotal, forKey: "totalPhotosSaved")
                         self?.totalPhotosSaved = newTotal
+                        self?.lastCapturedPhotoData = data
                         Analytics.track(Analytics.Event.photoSaved)
                     } else {
-                        self?.saveErrorMessage = "照片保存失败，请稍后重试"
+                        self?.saveErrorMessage = "照片没能存进相册，再拍一张试试"
                         self?.showSaveError = true
                     }
                 }
@@ -663,7 +741,7 @@ class CameraViewModel: NSObject, ObservableObject {
             guard let self else { return }
             guard status == .authorized || status == .limited else {
                 DispatchQueue.main.async {
-                    self.saveErrorMessage = "请在「设置」中允许访问相册"
+                    self.saveErrorMessage = "需要相册权限才能保存，请在「设置」中开启"
                     self.showSaveError = true
                 }
                 try? FileManager.default.removeItem(at: url)
@@ -675,8 +753,9 @@ class CameraViewModel: NSObject, ObservableObject {
                 DispatchQueue.main.async {
                     if success {
                         self?.showToast = true
+                        self?.lastCapturedVideoURL = url
                     } else {
-                        self?.saveErrorMessage = "视频保存失败，请稍后重试"
+                        self?.saveErrorMessage = "视频没能存进相册，检查一下相册空间再试试"
                         self?.showSaveError = true
                     }
                 }
@@ -699,7 +778,7 @@ extension CameraViewModel: AVCapturePhotoCaptureDelegate {
         guard error == nil, let data = photo.fileDataRepresentation() else { return }
         // 诊断第 7 项：解码实际拍出的照片尺寸，看和预览比例是否对齐
         if let image = UIImage(data: data) {
-            print("[Camera] 📸 Captured photo size: \(image.size), scale=\(image.scale), orientation=\(image.imageOrientation.rawValue)")
+            saLog("[Camera] 📸 Captured photo size: \(image.size), scale=\(image.scale), orientation=\(image.imageOrientation.rawValue)")
         }
         savePhotoToLibrary(data: data)
     }
@@ -716,7 +795,7 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.recordingStartToken += 1
             if let preset = self?.session.sessionPreset {
-                print("[VideoRecording] didStart writing, preset=\(preset.rawValue)")
+                saLog("[VideoRecording] didStart writing, preset=\(preset.rawValue)")
             }
         }
     }
@@ -725,7 +804,7 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
                     didFinishRecordingTo outputFileURL: URL,
                     from connections: [AVCaptureConnection], error: Error?) {
         if let error = error {
-            print("[VideoRecording] error: \(error.localizedDescription)")
+            saLog("[VideoRecording] error: \(error.localizedDescription)")
         }
         guard FileManager.default.fileExists(atPath: outputFileURL.path) else { return }
 
@@ -743,7 +822,7 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
     private static func ensurePortraitOrientation(fileURL: URL) async -> URL {
         let asset = AVURLAsset(url: fileURL)
         guard let videoTrack = try? await asset.loadTracks(withMediaType: .video).first else {
-            print("[VideoOrientation] no video track, skipping correction")
+            saLog("[VideoOrientation] no video track, skipping correction")
             return fileURL
         }
 
@@ -753,7 +832,7 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
             naturalSize = try await videoTrack.load(.naturalSize)
             preferredTransform = try await videoTrack.load(.preferredTransform)
         } catch {
-            print("[VideoOrientation] failed to load track props: \(error)")
+            saLog("[VideoOrientation] failed to load track props: \(error)")
             return fileURL
         }
 
@@ -762,12 +841,12 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
         let w = abs(transformedSize.width)
         let h = abs(transformedSize.height)
         if h >= w {
-            print("[VideoOrientation] already portrait (\(w)x\(h)), no correction needed")
+            saLog("[VideoOrientation] already portrait (\(w)x\(h)), no correction needed")
             return fileURL
         }
 
         // 横屏！重新 mux
-        print("[VideoOrientation] ⚠️ landscape detected (\(w)x\(h)), re-muxing to portrait...")
+        saLog("[VideoOrientation] ⚠️ landscape detected (\(w)x\(h)), re-muxing to portrait...")
         let composition = AVMutableComposition()
         guard let compositionVideoTrack = composition.addMutableTrack(
             withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid
@@ -780,7 +859,7 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
                 of: videoTrack, at: .zero
             )
         } catch {
-            print("[VideoOrientation] insertTimeRange failed: \(error)")
+            saLog("[VideoOrientation] insertTimeRange failed: \(error)")
             return fileURL
         }
 
@@ -818,10 +897,10 @@ extension CameraViewModel: AVCaptureFileOutputRecordingDelegate {
 
         if exportSession.status == .completed {
             try? FileManager.default.removeItem(at: fileURL) // 删原横屏文件
-            print("[VideoOrientation] ✅ re-muxed to portrait: \(correctedURL.lastPathComponent)")
+            saLog("[VideoOrientation] ✅ re-muxed to portrait: \(correctedURL.lastPathComponent)")
             return correctedURL
         } else {
-            print("[VideoOrientation] export failed: \(String(describing: exportSession.error))")
+            saLog("[VideoOrientation] export failed: \(String(describing: exportSession.error))")
             return fileURL  // fallback 保存原文件
         }
     }

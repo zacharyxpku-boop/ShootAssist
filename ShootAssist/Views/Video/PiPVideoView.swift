@@ -56,6 +56,9 @@ class PiPPlayerUIView: UIView {
     private var player: AVPlayer?
     private var playerItem: AVPlayerItem?
     private var playerLayer: AVPlayerLayer?
+    /// 用户最近一次意图：play() 设 true，pause() 设 false；
+    /// loop 重放前要检查这个，避免用户刚暂停就又被 didPlayToEnd 自动续播
+    private var shouldLoopPlay: Bool = false
 
     init(url: URL) {
         super.init(frame: .zero)
@@ -112,16 +115,23 @@ class PiPPlayerUIView: UIView {
     }
 
     @objc private func itemDidReachEnd(_ notification: Notification) {
+        // notification object 必须匹配当前 item，防止旧 item 遗留的通知干扰
+        guard let endedItem = notification.object as? AVPlayerItem,
+              endedItem === playerItem else { return }
+        // 尊重 pause 意图：用户主动暂停过就不自动续播
+        let shouldResume = shouldLoopPlay
         player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] _ in
-            self?.player?.play()
+            if shouldResume { self?.player?.play() }
         }
     }
 
     func play() {
+        shouldLoopPlay = true
         player?.play()
     }
 
     func pause() {
+        shouldLoopPlay = false
         player?.pause()
     }
 
@@ -133,6 +143,7 @@ class PiPPlayerUIView: UIView {
     /// 跳到开头，按 thenPlay 决定是否继续播放
     /// thenPlay=false 用于导入后静止在第一帧显示，不自动播
     func seekToZero(thenPlay: Bool) {
+        shouldLoopPlay = thenPlay
         player?.pause()
         player?.seek(to: .zero, toleranceBefore: .zero, toleranceAfter: .zero) { [weak self] finished in
             guard finished else { return }
@@ -145,7 +156,7 @@ class PiPPlayerUIView: UIView {
     }
 }
 
-/// SwiftUI 包装：带拖拽、点击暂停/恢复的 PiP 小窗
+/// SwiftUI 包装：带拖拽、捏合缩放、点击暂停/恢复的 PiP 小窗
 struct DraggablePiPView: View {
     let url: URL
     let screenSize: CGSize
@@ -154,6 +165,8 @@ struct DraggablePiPView: View {
     let audioEnabled: Bool
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var scale: CGFloat = 1.0
+    @State private var lastScale: CGFloat = 1.0
 
     private var pipWidth: CGFloat { screenSize.width / 3 }
     private var pipHeight: CGFloat { pipWidth * 16 / 9 }
@@ -167,16 +180,25 @@ struct DraggablePiPView: View {
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(Color.white.opacity(0.3), lineWidth: 0.5)
             )
+            .scaleEffect(scale)
             .offset(offset)
             .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        offset = CGSize(
-                            width: lastOffset.width + value.translation.width,
-                            height: lastOffset.height + value.translation.height
-                        )
-                    }
-                    .onEnded { _ in lastOffset = offset }
+                SimultaneousGesture(
+                    DragGesture()
+                        .onChanged { value in
+                            offset = CGSize(
+                                width: lastOffset.width + value.translation.width,
+                                height: lastOffset.height + value.translation.height
+                            )
+                        }
+                        .onEnded { _ in lastOffset = offset },
+                    MagnificationGesture()
+                        .onChanged { value in
+                            // 限制 0.5x ~ 2.5x，避免缩到看不见或撑满屏幕
+                            scale = min(max(lastScale * value, 0.5), 2.5)
+                        }
+                        .onEnded { _ in lastScale = scale }
+                )
             )
             .onTapGesture {
                 withAnimation(.easeInOut(duration: 0.2)) {

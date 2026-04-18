@@ -25,6 +25,15 @@ struct PhotoOverlayView: View {
     let angleCoachingTips: [String]
     let poseMatchScore: Float
 
+    // 参考骨架 transform binding（由 PhotoModeViewModel 持有）
+    @Binding var skeletonOffset: CGSize
+    @Binding var skeletonAccumOffset: CGSize
+    @Binding var skeletonScale: CGFloat
+    @Binding var skeletonAccumScale: CGFloat
+    var onSkeletonDoubleTap: () -> Void
+    /// 是否展示首次拖拽引导 hint
+    let showSkeletonHint: Bool
+
     init(
         subMode: PhotoSubMode = .influencerClone,
         isShootingPhase: Bool = false,
@@ -42,7 +51,13 @@ struct PhotoOverlayView: View {
         referenceReliabilityNote: String? = nil,
         lightingResult: LightingResult = .empty,
         angleCoachingTips: [String] = [],
-        poseMatchScore: Float = 0
+        poseMatchScore: Float = 0,
+        skeletonOffset: Binding<CGSize> = .constant(.zero),
+        skeletonAccumOffset: Binding<CGSize> = .constant(.zero),
+        skeletonScale: Binding<CGFloat> = .constant(1.0),
+        skeletonAccumScale: Binding<CGFloat> = .constant(1.0),
+        onSkeletonDoubleTap: @escaping () -> Void = {},
+        showSkeletonHint: Bool = false
     ) {
         self.subMode = subMode
         self.isShootingPhase = isShootingPhase
@@ -61,6 +76,12 @@ struct PhotoOverlayView: View {
         self.lightingResult = lightingResult
         self.angleCoachingTips = angleCoachingTips
         self.poseMatchScore = poseMatchScore
+        self._skeletonOffset = skeletonOffset
+        self._skeletonAccumOffset = skeletonAccumOffset
+        self._skeletonScale = skeletonScale
+        self._skeletonAccumScale = skeletonAccumScale
+        self.onSkeletonDoubleTap = onSkeletonDoubleTap
+        self.showSkeletonHint = showSkeletonHint
     }
 
     var body: some View {
@@ -82,13 +103,34 @@ struct PhotoOverlayView: View {
 
                 // =========== 拍同款模式（拍摄阶段）===========
                 if subMode == .influencerClone && isShootingPhase {
-                    // 1. 参考轮廓（关键点驱动的半透明粉色剪影）- 支持拖拽+捏合
+                    // 1. 参考轮廓（关键点驱动的半透明粉色剪影）- 支持拖拽+捏合+双击重置
                     if !referenceJoints.isEmpty {
                         InteractiveReferenceSilhouette(
                             joints: referenceJoints,
                             viewSize: geo.size,
-                            jointSources: referenceJointSources
+                            jointSources: referenceJointSources,
+                            offset: $skeletonOffset,
+                            accumOffset: $skeletonAccumOffset,
+                            scale: $skeletonScale,
+                            accumScale: $skeletonAccumScale,
+                            onDoubleTapReset: onSkeletonDoubleTap
                         )
+                        // 首次拖拽引导气泡
+                        if showSkeletonHint {
+                            VStack(spacing: 4) {
+                                Text("拖动调整 · 双指缩放 · 双击回到识别位置")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule().fill(Color.black.opacity(0.55))
+                                    )
+                            }
+                            .position(x: geo.size.width / 2, y: geo.safeAreaInsets.top + 80)
+                            .transition(.opacity)
+                            .allowsHitTesting(false)
+                        }
                     } else {
                         // 没有关键点时显示通用占位虚影
                         GhostSilhouetteView()

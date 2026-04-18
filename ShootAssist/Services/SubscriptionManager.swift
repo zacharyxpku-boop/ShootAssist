@@ -38,14 +38,14 @@ final class SubscriptionManager: ObservableObject {
             products = fetched.sorted { $0.price < $1.price }
             // 若未找到产品（沙盒无 StoreKit 配置），products 保持空，UI 显示 loading
         } catch {
-            print("[StoreKit] loadProducts failed: \(error.localizedDescription)")
+            saLog("[StoreKit] loadProducts failed: \(error.localizedDescription)")
             // 3 秒后自动重试一次
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             do {
                 let fetched = try await Product.products(for: productIDs)
                 products = fetched.sorted { $0.price < $1.price }
             } catch {
-                print("[StoreKit] retry also failed: \(error.localizedDescription)")
+                saLog("[StoreKit] retry also failed: \(error.localizedDescription)")
             }
         }
     }
@@ -72,7 +72,7 @@ final class SubscriptionManager: ObservableObject {
                 break
             }
         } catch {
-            purchaseError = "购买失败，请稍后重试"
+            purchaseError = "支付未完成，请稍后再试一次"
         }
     }
 
@@ -88,7 +88,7 @@ final class SubscriptionManager: ObservableObject {
             await refreshStatus()
             if isPro { Analytics.track(Analytics.Event.subscriptionRestored) }
         } catch {
-            purchaseError = "恢复失败，请检查网络后重试"
+            purchaseError = "恢复失败，确认网络连接后再试一次"
         }
     }
 

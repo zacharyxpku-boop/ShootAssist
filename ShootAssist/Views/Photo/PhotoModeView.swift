@@ -16,6 +16,9 @@ struct PhotoModeView: View {
     @State private var showPoseGuide = false         // Pose 引导面板
     @State private var activePose: PoseData? = nil   // 当前选中的 Pose 引导
     @State private var baseZoomLevel: CGFloat = 1.0  // 缩放手势起始基准
+    @State private var showSkeletonHint: Bool = false // 骨架拖拽首次引导
+    @State private var showShareSheet: Bool = false
+    @State private var shareItems: [Any] = []
 
     var body: some View {
         ZStack {
@@ -146,7 +149,13 @@ struct PhotoModeView: View {
                         referenceReliabilityNote: photoVM.referenceReliabilityNote,
                         lightingResult: photoVM.lightingResult,
                         angleCoachingTips: photoVM.angleCoachingTips,
-                        poseMatchScore: photoVM.poseMatchResult.score
+                        poseMatchScore: photoVM.poseMatchResult.score,
+                        skeletonOffset: $photoVM.refSkeletonOffset,
+                        skeletonAccumOffset: $photoVM.refSkeletonAccumOffset,
+                        skeletonScale: $photoVM.refSkeletonScale,
+                        skeletonAccumScale: $photoVM.refSkeletonAccumScale,
+                        onSkeletonDoubleTap: { photoVM.resetSkeletonTransform() },
+                        showSkeletonHint: showSkeletonHint
                     )
 
                     // 拍同款设置阶段遮罩
@@ -169,6 +178,18 @@ struct PhotoModeView: View {
                                 photoVM.recordCloneUse()
                                 Analytics.track(Analytics.Event.cloneSessionStarted)
                                 withAnimation(.easeInOut(duration: 0.3)) { photoVM.isShootingPhase = true }
+                                // 首次进入拍摄阶段时展示引导气泡（4 秒后隐藏）
+                                if !photoVM.skeletonHintShown {
+                                    withAnimation(.easeInOut(duration: 0.25).delay(0.5)) {
+                                        showSkeletonHint = true
+                                    }
+                                    photoVM.skeletonHintShown = true
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) {
+                                        withAnimation(.easeInOut(duration: 0.4)) {
+                                            showSkeletonHint = false
+                                        }
+                                    }
+                                }
                             }
                         )
                     }
@@ -200,7 +221,7 @@ struct PhotoModeView: View {
                                 .font(.system(size: 14)).foregroundColor(.white.opacity(0.8))
                             Text("×5").font(.system(size: 9, weight: .medium)).foregroundColor(.white.opacity(0.6))
                         }
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.15)))
                     }
                     .accessibilityLabel("连拍")
@@ -212,11 +233,34 @@ struct PhotoModeView: View {
                         burstAction: { cameraVM.captureBurst(count: 5) }
                     )
                     Spacer()
+                    // 分享最近一张（仅在本 session 已拍过照片后出现）
+                    if let data = cameraVM.lastCapturedPhotoData, let thumb = UIImage(data: data) {
+                        Button(action: {
+                            shareItems = [thumb]
+                            showShareSheet = true
+                        }) {
+                            Image(uiImage: thumb)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 34, height: 34)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.6), lineWidth: 1)
+                                )
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel("分享最近一张")
+                    } else {
+                        // 占位保持快门居中
+                        Color.clear.frame(width: 44, height: 44)
+                    }
                     Button(action: {
                         withAnimation(.easeInOut(duration: 0.3)) { cameraVM.switchCamera() }
                     }) {
                         Circle().fill(Color.white.opacity(0.15)).frame(width: 34, height: 34)
                             .overlay(Image(systemName: "camera.rotate").foregroundColor(.white).font(.system(size: 14)))
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("切换摄像头")
                     .accessibilityValue(cameraVM.isFrontCamera ? "前置" : "后置")
@@ -249,6 +293,9 @@ struct PhotoModeView: View {
         }
         .sheet(isPresented: $showPoseGuide) {
             PoseGuideSheet(activePose: $activePose, isPresented: $showPoseGuide)
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: shareItems)
         }
         // 参考图选择器
         .sheet(isPresented: $photoVM.showImagePicker) {
@@ -354,7 +401,9 @@ private struct PermissionDeniedView: View {
             Image(systemName: "camera.fill").font(.system(size: 40)).foregroundColor(.rosePink)
             Text("需要相机权限").font(.system(size: 18, weight: .semibold)).foregroundColor(.berryBrown)
             Text("请在「设置」中开启相机权限\n才能使用拍摄功能")
-                .font(.system(size: 13)).foregroundColor(.midBerryBrown).multilineTextAlignment(.center)
+                .font(.system(size: 13)).foregroundColor(.midBerryBrown)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             Button(action: {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             }) {

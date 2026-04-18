@@ -30,10 +30,11 @@ struct PaywallView: View {
                             .foregroundColor(.gray.opacity(0.55))
                             .frame(width: 30, height: 30)
                             .background(Circle().fill(Color.gray.opacity(0.1)))
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("关闭")
-                    .padding(.trailing, 20)
-                    .padding(.top, 16)
+                    .padding(.trailing, 12)
+                    .padding(.top, 8)
                 }
 
                 ScrollView(showsIndicators: false) {
@@ -154,13 +155,16 @@ struct PaywallView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
 
-                        // 免费试用提示
-                        Text("首次订阅享 3 天免费体验，到期前取消不扣费")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color(hex: "FF8C42"))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
-                            .padding(.top, 8)
+                        // 免费试用提示 — 只在选中的产品确实带 introductoryOffer 时才显示
+                        // App Review 会对"3 天免费"类文案做 StoreKit 真实性核查，静态文案容易被打回
+                        if let offerText = introductoryOfferText(for: selectedProductID) {
+                            Text(offerText)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(Color(hex: "FF8C42"))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 30)
+                                .padding(.top, 8)
+                        }
 
                         // 自动续费说明
                         Text("订阅到期自动续费，可随时在「设置 › Apple ID › 订阅」中取消")
@@ -216,6 +220,8 @@ struct PaywallView: View {
         } message: {
             Text(subManager.purchaseError ?? "")
         }
+        // 整页基于亮色渐变+深色文字，强制 light 避免暗色模式下文字/卡片对比度崩盘
+        .preferredColorScheme(.light)
     }
 
     // MARK: - 辅助
@@ -238,6 +244,33 @@ struct PaywallView: View {
     private func openURL(_ string: String) {
         guard let url = URL(string: string) else { return }
         UIApplication.shared.open(url)
+    }
+
+    /// 动态判定选中产品是否带介绍性优惠（免费试用 / 折扣首期）
+    /// App Review 会核查文案和 StoreKit 实际配置的一致性，静态写死容易被打回
+    private func introductoryOfferText(for productID: String) -> String? {
+        guard let product = subManager.products.first(where: { $0.id == productID }),
+              let offer = product.subscription?.introductoryOffer else {
+            return nil
+        }
+        let periodText: String = {
+            let count = offer.period.value
+            switch offer.period.unit {
+            case .day:   return "\(count) 天"
+            case .week:  return "\(count) 周"
+            case .month: return "\(count) 个月"
+            case .year:  return "\(count) 年"
+            @unknown default: return ""
+            }
+        }()
+        switch offer.paymentMode {
+        case .freeTrial:
+            return "首次订阅享 \(periodText)免费体验，到期前取消不扣费"
+        case .payAsYouGo, .payUpFront:
+            return "首次订阅 \(periodText)享特惠价 \(offer.displayPrice)"
+        default:
+            return nil
+        }
     }
 }
 

@@ -56,10 +56,31 @@ class PhotoModeViewModel: ObservableObject {
         didSet {
             referenceImageVersion += 1
             didRecordCurrentMatch = false
+            // 换参考图时把骨架拖拽状态清零 —— 避免旧位移把新骨架推到屏幕外
+            refSkeletonOffset = .zero
+            refSkeletonAccumOffset = .zero
+            refSkeletonScale = 1.0
+            refSkeletonAccumScale = 1.0
             if referenceImage == nil { isShootingPhase = false }
         }
     }
     @Published var referenceImageVersion: Int = 0
+
+    // MARK: - 参考骨架拖拽/缩放状态（上提到 VM，防止 GeometryReader 重建时 @State 丢失）
+    @Published var refSkeletonOffset: CGSize = .zero
+    @Published var refSkeletonAccumOffset: CGSize = .zero
+    @Published var refSkeletonScale: CGFloat = 1.0
+    @Published var refSkeletonAccumScale: CGFloat = 1.0
+    /// 首次拖拽引导是否已展示过（跨 session 持久化）
+    @AppStorage("sa_skeleton_hint_shown") var skeletonHintShown: Bool = false
+
+    /// 双击重置骨架回到识别位置
+    func resetSkeletonTransform() {
+        refSkeletonOffset = .zero
+        refSkeletonAccumOffset = .zero
+        refSkeletonScale = 1.0
+        refSkeletonAccumScale = 1.0
+    }
     private var didRecordCurrentMatch = false
     @Published var showImagePicker = false
     @Published var isShootingPhase: Bool = false   // false=设置阶段, true=拍摄阶段
@@ -231,6 +252,7 @@ class PhotoModeViewModel: ObservableObject {
         referenceAnalysisError = nil
         poseMatchResult = .empty
         isShootingPhase = false
+        resetSkeletonTransform()
     }
 
     // MARK: - 机位提示（Vision 驱动的动态提示）
