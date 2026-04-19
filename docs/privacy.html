@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小白快门 隐私政策 / ShootAssist Privacy Policy</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #ffffff; color: #111111; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Arial, sans-serif;
+    line-height: 1.7;
+    font-size: 16px;
+    padding: 24px 20px 64px;
+    max-width: 760px;
+    margin: 0 auto;
+  }
+  header { border-bottom: 1px solid #000; padding-bottom: 16px; margin-bottom: 24px; }
+  h1 { font-size: 22px; margin: 0 0 8px; font-weight: 700; }
+  h2 { font-size: 18px; margin: 28px 0 10px; font-weight: 700; border-left: 3px solid #000; padding-left: 10px; }
+  h3 { font-size: 16px; margin: 18px 0 8px; font-weight: 600; }
+  p, li { font-size: 15px; color: #222; }
+  ul, ol { padding-left: 22px; }
+  li { margin-bottom: 6px; }
+  code { background: #f4f4f4; padding: 1px 6px; border-radius: 3px; font-size: 13px; }
+  hr { border: 0; border-top: 1px solid #000; margin: 48px 0; }
+  .meta { color: #666; font-size: 13px; }
+  .callout { border: 1px solid #000; padding: 12px 14px; margin: 16px 0; background: #fafafa; font-size: 14px; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #ccc; font-size: 13px; color: #666; }
+  a { color: #000; }
+  @media (max-width: 480px) {
+    body { padding: 16px 14px 48px; font-size: 15px; }
+    h1 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>小白快门 隐私政策</h1>
+  <div class="meta">生效日期：2026 年 4 月 19 日 · 版本 1.0</div>
+</header>
+
+<div class="callout">
+  <strong>一句话摘要：</strong>小白快门不收集你的任何个人信息，不上传你的照片视频，不使用第三方追踪。全部处理在你的 iPhone 本地完成。
+</div>
+
+<h2>1. 开发者与联系方式</h2>
+<ul>
+  <li>App 名称：小白快门（ShootAssist）</li>
+  <li>联系邮箱：<a href="mailto:support@shootassist.app">support@shootassist.app</a></li>
+  <li>官网：shootassist.app</li>
+</ul>
+
+<h2>2. 我们收集的信息</h2>
+<p><strong>本 App 不收集任何可识别个人信息。</strong>按照 Apple App 隐私报告标准（PrivacyInfo.xcprivacy）声明，我们的「收集数据类型」字段为空数组。具体含义：</p>
+<ul>
+  <li>不收集姓名、邮箱、手机号、身份证等身份信息</li>
+  <li>不收集设备 IDFA/IDFV、精确位置、通讯录、日历</li>
+  <li>不收集你拍摄或导入的照片、视频、音频</li>
+  <li>不收集崩溃日志、行为埋点，本 App 不向任何服务器上报事件</li>
+</ul>
+
+<h2>3. App 申请的权限及用途</h2>
+<p>以下权限仅用于在你的设备本地完成功能，数据不离开 iPhone：</p>
+<ul>
+  <li><strong>相机（NSCameraUsageDescription）</strong>：取景预览、实时构图指导、姿势匹配。画面仅在拍摄时显示在屏幕上，除非你主动点击「保存」，否则不写入相册。</li>
+  <li><strong>麦克风（NSMicrophoneUsageDescription）</strong>：录制视频时收录现场声音。仅在录制过程中激活。</li>
+  <li><strong>相册读取（NSPhotoLibraryUsageDescription）</strong>：读取你选择的参考照片或舞蹈视频，用于姿势识别比对。读取后数据仅在内存中处理。</li>
+  <li><strong>相册写入（NSPhotoLibraryAddUsageDescription）</strong>：将你拍摄的成片保存到系统相册。</li>
+  <li><strong>有限相册访问（NSPhotoLibraryLimitedAccessUsageDescription）</strong>：如你选择「有限访问」，App 仅能读取你授权的那几张照片。</li>
+  <li><strong>语音识别（NSSpeechRecognitionUsageDescription）</strong>：识别你导入音乐中的歌词，自动生成对口型字幕。使用 Apple Speech Framework 的<strong>本地设备识别模式</strong>，不经由除 Apple 系统组件外的任何第三方服务器。</li>
+</ul>
+<p>你可随时在 iOS「设置 → 隐私与安全性」中撤回任一权限；撤回后相关功能不可用，但 App 其他部分仍可正常使用。</p>
+
+<h2>4. 本地数据存储</h2>
+<p>以下数据仅保存在你的 iPhone 本地，不上传：</p>
+<ul>
+  <li><strong>UserDefaults</strong>：订阅状态标记、每日功能使用计数、邀请码、App 内行为事件（用于本地展示使用统计，不上报）</li>
+  <li><strong>App 沙盒文档目录</strong>：你拍摄或处理中的临时照片/视频文件</li>
+  <li><strong>临时缓存目录</strong>：视频加水印、格式转换过程中的中间文件，任务结束后清理</li>
+  <li><strong>iOS Keychain</strong>：由 StoreKit 2 管理的订阅凭证（由 Apple 系统维护，App 无法直接读取敏感字段）</li>
+</ul>
+<p>卸载 App 时，以上所有本地数据随 iOS 系统机制一并删除。</p>
+
+<h2>5. 第三方服务</h2>
+<p>本 App<strong>不集成任何第三方 SDK</strong>（无 Firebase、Mixpanel、友盟、神策、Google Analytics 等）。仅依赖 Apple 提供的系统服务：</p>
+<ul>
+  <li><strong>Apple StoreKit 2</strong>：处理订阅购买、价格展示、恢复购买。受 Apple 隐私政策约束。</li>
+  <li><strong>Apple Speech Recognition</strong>：仅使用本地设备识别模式（on-device），不调用 Apple 云端识别。</li>
+  <li><strong>Apple Photos</strong>：相册读写，受系统权限管控。</li>
+</ul>
+
+<h2>6. 儿童隐私</h2>
+<p>本 App 年龄分级为 <strong>12+</strong>，不面向 14 岁以下儿童设计。我们不主动收集未成年人信息。如监护人发现 14 岁以下儿童使用了本 App，可通过 <a href="mailto:support@shootassist.app">support@shootassist.app</a> 联系我们。由于本 App 本身不收集信息，通常无需额外处理。</p>
+
+<h2>7. 数据安全</h2>
+<ul>
+  <li>所有数据处理在设备本地，不经过我方服务器</li>
+  <li>App 遵循 iOS App Transport Security (ATS)，任何必要的网络请求（仅 StoreKit 与 Apple 服务通信）均走 HTTPS</li>
+  <li>订阅凭证由 iOS Keychain 加密存储</li>
+</ul>
+
+<h2>8. 你的权利</h2>
+<p>因本 App 不收集你的个人信息，传统意义上的「数据查询、删除、更正、可携带」请求通常不适用。你仍拥有：</p>
+<ul>
+  <li><strong>撤回权限</strong>：iOS 设置中随时关闭相机/麦克风/相册/语音识别权限</li>
+  <li><strong>清除本地数据</strong>：iOS 设置 → 通用 → iPhone 储存空间 → 小白快门 → 卸载 App</li>
+  <li><strong>取消订阅</strong>：iOS 设置 → Apple ID → 订阅 → 小白快门 Pro</li>
+  <li><strong>投诉与咨询</strong>：<a href="mailto:support@shootassist.app">support@shootassist.app</a>，我们承诺 15 个工作日内回复</li>
+</ul>
+
+<h2>9. 政策更新</h2>
+<p>如隐私政策发生实质变更，我们会在 App 内以弹窗形式提示，并更新本页「生效日期」。继续使用即视为同意更新后的政策。</p>
+
+<h2>10. 适用法律与管辖</h2>
+<ul>
+  <li><strong>中国大陆用户</strong>：本政策受中华人民共和国法律管辖，包括《个人信息保护法》《网络安全法》《App 收集使用个人信息最小必要评估规范》。争议由开发者所在地人民法院管辖。</li>
+  <li><strong>海外用户</strong>：本政策符合欧盟 GDPR、美国加州 CCPA 的基本原则（因我们不收集数据，多数条款自动满足）。</li>
+</ul>
+
+<hr>
+
+<header>
+  <h1>ShootAssist Privacy Policy</h1>
+  <div class="meta">Effective date: April 19, 2026 · Version 1.0</div>
+</header>
+
+<div class="callout">
+  <strong>TL;DR:</strong> ShootAssist collects no personal information, uploads none of your photos or videos, and uses no third-party tracking. All processing happens on your iPhone.
+</div>
+
+<h2>1. Developer & Contact</h2>
+<ul>
+  <li>App: ShootAssist (小白快门)</li>
+  <li>Email: <a href="mailto:support@shootassist.app">support@shootassist.app</a></li>
+  <li>Website: shootassist.app</li>
+</ul>
+
+<h2>2. Data We Collect</h2>
+<p><strong>We collect no personally identifiable information.</strong> Our Apple privacy manifest (PrivacyInfo.xcprivacy) declares an empty <code>NSPrivacyCollectedDataTypes</code> array. Concretely:</p>
+<ul>
+  <li>No name, email, phone, or government ID</li>
+  <li>No IDFA/IDFV, precise location, contacts, or calendar</li>
+  <li>No photos, videos, or audio you capture or import</li>
+  <li>No crash logs or analytics events transmitted off-device</li>
+</ul>
+
+<h2>3. Permissions & Purpose</h2>
+<p>The following permissions power local features. Data does not leave your iPhone.</p>
+<ul>
+  <li><strong>Camera</strong>: Live viewfinder, framing guidance, pose matching. The feed is not written to the photo library unless you tap Save.</li>
+  <li><strong>Microphone</strong>: Records ambient sound while you record video. Active only during capture.</li>
+  <li><strong>Photo Library (read)</strong>: Imports reference photos or dance videos you pick, for pose matching. Processed in memory.</li>
+  <li><strong>Photo Library (write)</strong>: Saves your finished shots to the system photo library.</li>
+  <li><strong>Limited Library Access</strong>: If you choose limited access, the app reads only the photos you explicitly selected.</li>
+  <li><strong>Speech Recognition</strong>: Detects lyrics in music you import to generate lip-sync captions. Uses Apple's <strong>on-device</strong> Speech Framework — no third-party server beyond Apple system components.</li>
+</ul>
+<p>You can revoke any permission in iOS Settings → Privacy &amp; Security at any time. The related feature becomes unavailable; the rest of the app still works.</p>
+
+<h2>4. Local Storage</h2>
+<p>Stored on-device only, never uploaded:</p>
+<ul>
+  <li><strong>UserDefaults</strong>: subscription flag, daily usage counter, invite code, in-app event log (for local display only).</li>
+  <li><strong>App sandbox documents</strong>: temporary captured or in-progress photo/video files.</li>
+  <li><strong>Temporary cache</strong>: intermediate files during watermarking/format conversion, cleared after the task.</li>
+  <li><strong>iOS Keychain</strong>: StoreKit 2 subscription receipt, managed by the system.</li>
+</ul>
+<p>Uninstalling the app removes all of the above per standard iOS behavior.</p>
+
+<h2>5. Third-Party Services</h2>
+<p>The app integrates <strong>no third-party SDKs</strong> (no Firebase, Mixpanel, Google Analytics, etc.). Only Apple system services are used:</p>
+<ul>
+  <li><strong>Apple StoreKit 2</strong>: subscription purchase, pricing, restore. Governed by Apple's privacy policy.</li>
+  <li><strong>Apple Speech Recognition</strong>: on-device mode only; the Apple cloud path is not invoked.</li>
+  <li><strong>Apple Photos</strong>: system-mediated read/write under your permission.</li>
+</ul>
+
+<h2>6. Children's Privacy</h2>
+<p>The app is rated <strong>12+</strong> and is not directed at children under 13 (COPPA) or 14 (China). We do not knowingly collect information from minors. Because we collect no information by design, no further action is typically required. Guardians may reach <a href="mailto:support@shootassist.app">support@shootassist.app</a>.</p>
+
+<h2>7. Data Security</h2>
+<ul>
+  <li>Processing is on-device; no data transits our servers.</li>
+  <li>iOS App Transport Security (ATS) enforces HTTPS on the only network traffic used (Apple StoreKit).</li>
+  <li>Subscription receipts are stored in the encrypted iOS Keychain.</li>
+</ul>
+
+<h2>8. Your Rights</h2>
+<p>Because we hold no personal data, traditional access/erasure/rectification/portability requests generally do not apply. You still have:</p>
+<ul>
+  <li>Revoke permissions any time in iOS Settings.</li>
+  <li>Erase local data by uninstalling via iOS Settings → General → iPhone Storage → ShootAssist.</li>
+  <li>Cancel subscription via iOS Settings → Apple ID → Subscriptions → ShootAssist Pro.</li>
+  <li>Contact <a href="mailto:support@shootassist.app">support@shootassist.app</a>; we reply within 15 business days.</li>
+</ul>
+
+<h2>9. Changes to This Policy</h2>
+<p>Material changes are announced in-app and reflected in the Effective Date above. Continued use constitutes acceptance.</p>
+
+<h2>10. Governing Law</h2>
+<ul>
+  <li><strong>Mainland China users</strong>: Governed by PRC law including the Personal Information Protection Law (PIPL) and the Cybersecurity Law. Disputes resolved in the people's court of the developer's domicile.</li>
+  <li><strong>Overseas users</strong>: Aligned with EU GDPR and California CCPA baseline principles. Since no data is collected, most obligations are satisfied by design.</li>
+</ul>
+
+<footer>
+  <p>Contact / 联系：<a href="mailto:support@shootassist.app">support@shootassist.app</a></p>
+  <p>&copy; 2026 ShootAssist. All rights reserved.</p>
+</footer>
+
+<!--
+  MAINTAINER NOTE — READ BEFORE EDITING
+  本文件声明「零数据收集、零第三方 SDK、零追踪」。
+  如未来 App 接入任何以下能力，必须同步更新本页并重审 PrivacyInfo.xcprivacy：
+    1. 任何第三方 SDK（分析、广告、推送、崩溃上报、A/B 实验等）
+    2. 任何自建后端接口（用户系统、云端同步、云端 AI 推理等）
+    3. 任何行为事件上报（埋点、funnel、留存分析等）
+    4. 任何将照片/视频/音频/文本上传至服务器的链路
+    5. 推送通知、IDFA 请求、精确位置等新权限
+  同步改动项：privacy.html 第 2/4/5 节、PrivacyInfo.xcprivacy、App Store Connect 隐私问卷
+-->
+
+</body>
+</html>
