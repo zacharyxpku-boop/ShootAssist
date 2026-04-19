@@ -167,7 +167,10 @@ struct VideoModeView: View {
 
                     // 分享最近一条（录制结束且已保存后出现）
                     if cameraVM.lastCapturedVideoURL != nil {
-                        Button(action: { showShareSheet = true }) {
+                        Button(action: {
+                            Analytics.track(Analytics.Event.videoShared)
+                            showShareSheet = true
+                        }) {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.system(size: 14)).foregroundColor(.white)
                                 .frame(width: 30, height: 30)

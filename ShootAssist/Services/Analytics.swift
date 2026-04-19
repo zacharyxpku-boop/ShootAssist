@@ -51,12 +51,20 @@ struct Analytics {
     }
 }
 
-// MARK: - 事件名常量（防止拼写错误）
+// MARK: - 事件名常量（防止拼写错误 + 上线后统一漏斗口径）
 
 extension Analytics {
     enum Event {
-        // 核心启动
+        // 核心启动 & onboarding
         static let appOpened             = "app_opened"
+        static let onboardingShown       = "onboarding_shown"       // 首次启动 OnboardingView 出现
+        static let onboardingPageViewed  = "onboarding_page_viewed" // 翻到某一页（properties: index）
+        static let onboardingCompleted   = "onboarding_completed"   // 走完 3 页点开始使用
+        static let onboardingSkipped     = "onboarding_skipped"     // 中途跳过（properties: at_page）
+
+        // 权限
+        static let permissionCameraGranted = "permission_camera_granted"
+        static let permissionCameraDenied  = "permission_camera_denied"
 
         // 拍同款漏斗
         static let cloneSessionStarted   = "clone_session_started"   // 进入拍同款模式
@@ -66,14 +74,26 @@ extension Analytics {
         // 照片/视频产出
         static let photoSaved            = "photo_saved"
         static let videoSaved            = "video_saved"
+        static let photoShared           = "photo_shared"            // 普通照片分享
         static let comparisonCardShared  = "comparison_card_shared"  // 对比拼图分享
         static let videoShared           = "video_shared"            // 视频分享
 
+        // 姿势库
+        static let poseLibraryOpened     = "pose_library_opened"     // 打开姿势库页面
+        static let posePresetOpened      = "pose_preset_opened"      // 打开某个爆款姿势详情
+        static let posePresetUsed        = "pose_preset_used"        // 点「用这个姿势拍」跳入相机
+        static let posePresetCardShared  = "pose_preset_card_shared" // 点分享生成卡片成功
+
         // 邀请裂变
-        static let referralGenerated     = "referral_generated"      // 触发了分享（附带邀请码）
+        static let referralShareFired    = "referral_share_fired"    // 触发了 shareAppendText 走分享
+        static let referralRedeemed      = "referral_redeemed"       // 别人的码在本机兑换成功
 
         // 付费漏斗
         static let paywallViewed         = "paywall_viewed"
+        static let paywallPlanSelected   = "paywall_plan_selected"   // 点选某个订阅档位
+        static let paywallCtaTapped      = "paywall_cta_tapped"      // 点主 CTA 发起 StoreKit 购买
+        static let paywallDismissed      = "paywall_dismissed"       // 未付费就关掉（放弃）
+        static let trialGranted          = "trial_granted"           // 发了 N 天试用
         static let subscriptionPurchased = "subscription_purchased"
         static let subscriptionRestored  = "subscription_restored"
     }

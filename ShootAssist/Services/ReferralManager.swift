@@ -49,6 +49,7 @@ final class ReferralManager {
     nonisolated static func recordShareAction() {
         let count = UserDefaults.standard.integer(forKey: "referral_count")
         UserDefaults.standard.set(count + 1, forKey: "referral_count")
+        Analytics.track(Analytics.Event.referralShareFired)
     }
 
     // MARK: - 兑换别人的邀请码
@@ -102,7 +103,7 @@ final class ReferralManager {
             }
         }
 
-        Analytics.track("referral_redeemed", properties: ["code": normalized])
+        Analytics.track(Analytics.Event.referralRedeemed, properties: ["code": normalized])
         return .success
     }
 

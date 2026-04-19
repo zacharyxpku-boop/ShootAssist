@@ -178,13 +178,21 @@ class CameraViewModel: NSObject, ObservableObject {
     func checkPermission() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
+            // 已授权的用户不重复记事件（避免每次进相机都 +1）
             requestAudioThenSetup()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                if granted { self?.requestAudioThenSetup() }
-                else { DispatchQueue.main.async { self?.permissionDenied = true } }
+                if granted {
+                    Analytics.track(Analytics.Event.permissionCameraGranted)
+                    self?.requestAudioThenSetup()
+                } else {
+                    Analytics.track(Analytics.Event.permissionCameraDenied)
+                    DispatchQueue.main.async { self?.permissionDenied = true }
+                }
             }
         default:
+            // 用户之前拒绝过 + 没再去设置里打开：首屏直接跳权限拒绝态
+            Analytics.track(Analytics.Event.permissionCameraDenied)
             DispatchQueue.main.async { [weak self] in self?.permissionDenied = true }
         }
     }
@@ -775,6 +783,7 @@ class CameraViewModel: NSObject, ObservableObject {
                     if success {
                         self?.showToast = true
                         self?.lastCapturedVideoURL = url
+                        Analytics.track(Analytics.Event.videoSaved)
                         // 注：视频 URL 保留用于分享，launch 时 cleanTempFiles 兜底清理
                     } else {
                         self?.saveErrorMessage = "视频没能存进相册，检查一下相册空间再试试"

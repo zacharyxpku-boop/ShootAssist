@@ -63,7 +63,7 @@ final class SubscriptionManager: ObservableObject {
         trialEndDate = newEnd
         UserDefaults.standard.set(newEnd.timeIntervalSince1970, forKey: Self.trialEndDateKey)
         isPro = true
-        Analytics.track("trial_granted", properties: ["days": days])
+        Analytics.track(Analytics.Event.trialGranted, properties: ["days": days])
     }
 
     /// 试用剩余天数（向上取整，≤0 返回 0）。UI 展示用。

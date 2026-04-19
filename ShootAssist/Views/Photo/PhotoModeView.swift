@@ -295,9 +295,11 @@ struct PhotoModeView: View {
                                 )
                                 shareItems = [card, ReferralManager.shareAppendText()]
                                 ReferralManager.recordShareAction()
+                                Analytics.track(Analytics.Event.comparisonCardShared)
                             } else {
                                 shareItems = [thumb, ReferralManager.shareAppendText()]
                                 ReferralManager.recordShareAction()
+                                Analytics.track(Analytics.Event.photoShared)
                             }
                             showShareSheet = true
                         }) {
@@ -374,6 +376,7 @@ struct PhotoModeView: View {
         // 参考图选择后 → 重置为设置阶段 + 自动触发 Pose 分析
         .onChange(of: photoVM.referenceImageVersion) { _ in
             if photoVM.referenceImage != nil {
+                Analytics.track(Analytics.Event.referenceImagePicked)
                 photoVM.isShootingPhase = false
                 photoVM.analyzeReferenceImage(cameraVM.visionService)
             } else {

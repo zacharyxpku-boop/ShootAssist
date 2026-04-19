@@ -54,6 +54,17 @@ struct PoseLibraryView: View {
         .sheet(item: $selectedPreset) { preset in
             PresetDetailSheet(preset: preset)
         }
+        .onAppear {
+            Analytics.track(Analytics.Event.poseLibraryOpened)
+        }
+        .onChange(of: selectedPreset) { preset in
+            if let preset {
+                Analytics.track(
+                    Analytics.Event.posePresetOpened,
+                    properties: ["preset_id": preset.id, "category": preset.category.rawValue]
+                )
+            }
+        }
     }
 
     // MARK: - Tab 切换条
@@ -376,6 +387,14 @@ private struct PresetDetailSheet: View {
                             )
                             .shadow(color: .rosePink.opacity(0.3), radius: 10, y: 4)
                         }
+                        // NavigationLink 自己不暴露 tap 回调，用 simultaneousGesture 埋点
+                        // 不拦截导航行为，只叠一次 tap 事件记录
+                        .simultaneousGesture(TapGesture().onEnded {
+                            Analytics.track(
+                                Analytics.Event.posePresetUsed,
+                                properties: ["preset_id": preset.id]
+                            )
+                        })
                         .padding(.top, 8)
                     }
                     .padding(20)
@@ -427,6 +446,10 @@ private struct PresetDetailSheet: View {
                 if let img = image {
                     shareImage = img
                     showingShareSheet = true
+                    Analytics.track(
+                        Analytics.Event.posePresetCardShared,
+                        properties: ["preset_id": preset.id]
+                    )
                 } else {
                     withAnimation { showGenerateFailToast = true }
                     // 2 秒后自动消失

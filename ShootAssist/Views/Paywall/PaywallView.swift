@@ -158,7 +158,13 @@ struct PaywallView: View {
                                     ProProductCard(
                                         product: product,
                                         isSelected: selectedProductID == product.id,
-                                        onTap: { selectedProductID = product.id }
+                                        onTap: {
+                                            selectedProductID = product.id
+                                            Analytics.track(
+                                                Analytics.Event.paywallPlanSelected,
+                                                properties: ["plan_id": product.id]
+                                            )
+                                        }
                                     )
                                 }
                             }
@@ -234,7 +240,7 @@ struct PaywallView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.3))
 
-                            Button("隐私政策") { openURL("https://shootassist.app/privacy") }
+                            Button("隐私政策") { openURL("https://shootassist.app/privacy.html") }
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.55))
 
@@ -242,7 +248,7 @@ struct PaywallView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.3))
 
-                            Button("服务条款") { openURL("https://shootassist.app/terms") }
+                            Button("服务条款") { openURL("https://shootassist.app/terms.html") }
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.55))
                         }
@@ -255,6 +261,12 @@ struct PaywallView: View {
         .onAppear {
             preselectAnnual()
             Analytics.track(Analytics.Event.paywallViewed)
+        }
+        .onDisappear {
+            // 关页面时若既没付费也不是试用中 → 放弃漏斗节点
+            if !subManager.isPro {
+                Analytics.track(Analytics.Event.paywallDismissed)
+            }
         }
         .onChange(of: subManager.products) { _ in preselectAnnual() }
         .onChange(of: subManager.isPro) { isPro in
@@ -307,6 +319,10 @@ struct PaywallView: View {
         let product = subManager.products.first(where: { $0.id == selectedProductID })
                    ?? subManager.products.first
         guard let product else { return }
+        Analytics.track(
+            Analytics.Event.paywallCtaTapped,
+            properties: ["plan_id": product.id, "in_trial": isInTrial]
+        )
         Task { await subManager.purchase(product) }
     }
 

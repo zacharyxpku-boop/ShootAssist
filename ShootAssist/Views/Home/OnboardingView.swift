@@ -2,6 +2,13 @@ import SwiftUI
 
 // MARK: - 首次启动引导（3 页）
 // 通过 @AppStorage("hasSeenOnboarding") 控制只展示一次
+//
+// v1.0 文案审查（App Review 2.3.3 准确元数据）：
+// 旧版宣传「AI 提取手势」「emoji 节拍」「40+ Pose」 — 对应功能已砍或数量不符，
+// 属于对用户的误导性承诺。本次全部改为和实现一致的描述：
+//   1. 拍同款 → 上传照片提取姿势剪影
+//   2. 爆款库 → 30 款 6 场景预设
+//   3. 舞蹈画中画 → 参考视频小窗播放
 
 struct OnboardingView: View {
     @Binding var isPresented: Bool
@@ -10,20 +17,20 @@ struct OnboardingView: View {
     private let pages: [OnboardingPage] = [
         OnboardingPage(
             icon: "📷",
-            title: "不修图，拍就好看",
-            subtitle: "AI 实时告诉你怎么站、怎么构图\n闭眼预警 · 黄金分割线 · 瞬间抓准",
+            title: "拍同款不用再揣摩",
+            subtitle: "上传喜欢的照片，App 提取姿势剪影\n叠在你的相机里，对着影子站就行",
             gradient: [Color(hex: "FF85A1"), Color(hex: "FFB3CC")]
         ),
         OnboardingPage(
-            icon: "🎬",
-            title: "把任意舞蹈变成引导",
-            subtitle: "导入一段跳舞视频，AI 自动提取手势\n跟着 emoji 节拍录制，简单上手",
+            icon: "🌸",
+            title: "30 款小红书爆款",
+            subtitle: "咖啡馆、街拍、旅行、情侣 6 大场景\n每个姿势都带机位和构图说明",
             gradient: [Color(hex: "FFCBA4"), Color(hex: "FF85A1")]
         ),
         OnboardingPage(
-            icon: "💡",
-            title: "拍之前先找好 Pose",
-            subtitle: "40+ 网红 Pose 图解 · 附带机位建议\n照着做，拍就好看",
+            icon: "🎬",
+            title: "跟着视频学舞蹈",
+            subtitle: "导入参考视频，角落小窗同步播放\n边看边拍，录出来的视频不带水印",
             gradient: [Color(hex: "E8C4FF"), Color(hex: "FFCBA4")]
         ),
     ]
@@ -92,7 +99,10 @@ struct OnboardingView: View {
                         }
                         .accessibilityLabel("下一步")
                     } else {
-                        Button(action: { isPresented = false }) {
+                        Button(action: {
+                            Analytics.track(Analytics.Event.onboardingCompleted)
+                            isPresented = false
+                        }) {
                             Text("开始使用 ✦")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
@@ -107,7 +117,13 @@ struct OnboardingView: View {
                         .accessibilityLabel("开始使用小白快门")
                     }
 
-                    Button(action: { isPresented = false }) {
+                    Button(action: {
+                        Analytics.track(
+                            Analytics.Event.onboardingSkipped,
+                            properties: ["at_page": currentPage]
+                        )
+                        isPresented = false
+                    }) {
                         Text("跳过")
                             .font(.system(size: 13))
                             .foregroundColor(.gray.opacity(0.6))
@@ -117,6 +133,19 @@ struct OnboardingView: View {
                 .padding(.horizontal, 32)
                 .padding(.bottom, 48)
             }
+        }
+        .onAppear {
+            Analytics.track(Analytics.Event.onboardingShown)
+            Analytics.track(
+                Analytics.Event.onboardingPageViewed,
+                properties: ["index": currentPage]
+            )
+        }
+        .onChange(of: currentPage) { newIndex in
+            Analytics.track(
+                Analytics.Event.onboardingPageViewed,
+                properties: ["index": newIndex]
+            )
         }
     }
 }
