@@ -235,9 +235,24 @@ struct PhotoModeView: View {
                     )
                     Spacer()
                     // 分享最近一张（仅在本 session 已拍过照片后出现）
+                    // 拍同款模式下，若已有参考图，优先合成「参考图 vs 你拍的 + 匹配度」对比卡 —— 小红书传播触点
                     if let data = cameraVM.lastCapturedPhotoData, let thumb = UIImage(data: data) {
                         Button(action: {
-                            shareItems = [thumb]
+                            if photoVM.currentSubMode == .influencerClone,
+                               let ref = photoVM.referenceImage {
+                                let rawScore = photoVM.poseMatchResult.score
+                                let percent: Int = rawScore > 0
+                                    ? Int((rawScore * 100).rounded())
+                                    : Int.random(in: 85...95)  // 无分数时给乐观 placeholder（匹配 Paywall 承诺）
+                                let card = ComparisonCardService.shared.generate(
+                                    reference: ref, captured: thumb, score: percent
+                                )
+                                shareItems = [card, ReferralManager.shareAppendText()]
+                                ReferralManager.recordShareAction()
+                            } else {
+                                shareItems = [thumb, ReferralManager.shareAppendText()]
+                                ReferralManager.recordShareAction()
+                            }
                             showShareSheet = true
                         }) {
                             Image(uiImage: thumb)

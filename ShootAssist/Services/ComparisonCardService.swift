@@ -61,11 +61,12 @@ class ComparisonCardService {
             let scoreX = (cardW - scoreSize.width) / 2
             (scoreText as NSString).draw(at: CGPoint(x: scoreX, y: photoH + 16), withAttributes: scoreAttrs)
 
-            // MARK: 品牌水印
-            let brandText = "小白快门制作"
+            // MARK: 品牌水印 + 邀请码（小红书看到图就能截图记下邀请码进来）
+            let code = ReferralManager.getReferralCode()
+            let brandText = "小白快门 App  ·  邀请码 \(code)"
             let brandAttrs: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 13, weight: .medium),
-                .foregroundColor: UIColor(red: 0.54, green: 0.43, blue: 0.46, alpha: 0.8)
+                .foregroundColor: UIColor(red: 0.54, green: 0.43, blue: 0.46, alpha: 0.9)
             ]
             let brandSize = (brandText as NSString).size(withAttributes: brandAttrs)
             let brandX = (cardW - brandSize.width) / 2
