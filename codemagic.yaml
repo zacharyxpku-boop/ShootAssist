@@ -119,6 +119,12 @@ workflows:
         submit_to_testflight: true
         beta_groups:
           - "Internal Testers"
+        # v1.0.1+ 生效：tag push → TestFlight 同时自动提审 App Store
+        # v1.0.0 首次提交必须手动填完元数据+截图才能通过，这条不会帮上忙；
+        # 但从 1.0.1 起，只要你预先在 App Store Connect 里把 What's New 改好，
+        # 推个 tag 就自动进审核队列
+        submit_to_app_store: true
+        release_type: MANUAL   # 审核通过后你手点发布，不自动上架
 
   ios-dev:
     name: ShootAssist Dev Build (TestFlight)
