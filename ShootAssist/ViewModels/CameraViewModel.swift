@@ -44,6 +44,8 @@ class CameraViewModel: NSObject, ObservableObject {
 
     var isVideoMode = false
     private var isCapturingPhoto = false
+    /// 连拍剩余张数；>0 时 delegate 回调会 schedule 下一张，串行化避免重入
+    private var burstRemaining: Int = 0
     /// Vision 分析开关：output 始终挂载，通过此 flag 在 delegate 中过滤
     var enableVisionAnalysis = true
     private var isConfigured = false
@@ -257,6 +259,11 @@ class CameraViewModel: NSObject, ObservableObject {
 
             if self.session.canAddOutput(self.photoOutput)  { self.session.addOutput(self.photoOutput) }
             if self.session.canAddOutput(self.movieOutput)  { self.session.addOutput(self.movieOutput) }
+
+            // 录像硬上限 180s：短视频场景没人录 3 分钟以上，防磁盘写满 / 内存爆炸 / 电池过热
+            // movieFragmentInterval 10s：崩溃时最多丢最后 10 秒，而不是整段 .mov 不可用
+            self.movieOutput.maxRecordedDuration = CMTime(seconds: 180, preferredTimescale: 600)
+            self.movieOutput.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 1)
 
             // Vision 帧分析（始终挂载，通过 enableVisionAnalysis 开关控制）
             self.videoDataOutput.setSampleBufferDelegate(self, queue: self.visionQueue)
@@ -550,12 +557,13 @@ class CameraViewModel: NSObject, ObservableObject {
     }
 
     /// 连拍：快速拍摄 count 张，间隔 0.28 s
+    /// 入口门闸 + burstRemaining 串行化，避免 delegate 未回调就第二次 capturePhoto
+    /// （同一 AVCapturePhotoCaptureDelegate 并发调用在 iOS 17+ 是未定义行为，可能 crash）
     func captureBurst(count: Int = 5) {
-        for i in 0..<count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.28) { [weak self] in
-                self?.triggerShutter()
-            }
-        }
+        guard !isCapturingPhoto, count > 0 else { return }
+        isCapturingPhoto = true
+        burstRemaining = count - 1   // 扣掉即将触发的这张，剩余交给 delegate 串
+        triggerShutter()
     }
 
     private func triggerShutter() {
@@ -569,7 +577,12 @@ class CameraViewModel: NSObject, ObservableObject {
                 withAnimation(.easeOut(duration: 0.3)) { self?.showFlash = false }
             }
         }
-        photoOutput.capturePhoto(with: settings, delegate: self)
+        // session-affiliated 方法必须走 sessionQueue，避免和 session 配置（切摄/改分辨率）
+        // 竞态。原先主线程直调偶发"按下快门没出照片"就是这个竞争被 session 配置抢先。
+        sessionQueue.async { [weak self] in
+            guard let self else { return }
+            self.photoOutput.capturePhoto(with: settings, delegate: self)
+        }
     }
 
     // MARK: - 闪光灯
@@ -784,7 +797,19 @@ class CameraViewModel: NSObject, ObservableObject {
 extension CameraViewModel: AVCapturePhotoCaptureDelegate {
     func photoOutput(_ output: AVCapturePhotoOutput,
                      didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        DispatchQueue.main.async { [weak self] in self?.isCapturingPhoto = false }
+        // 连拍：delegate 回调时若 burstRemaining > 0，0.28s 后派下一张，不释放 isCapturingPhoto
+        // 单拍 / 连拍最后一张：释放 isCapturingPhoto 允许下一次拍摄
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if self.burstRemaining > 0 {
+                self.burstRemaining -= 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) { [weak self] in
+                    self?.triggerShutter()
+                }
+            } else {
+                self.isCapturingPhoto = false
+            }
+        }
         guard error == nil, let data = photo.fileDataRepresentation() else { return }
         // 诊断第 7 项：解码实际拍出的照片尺寸，看和预览比例是否对齐
         if let image = UIImage(data: data) {

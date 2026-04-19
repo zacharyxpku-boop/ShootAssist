@@ -18,6 +18,9 @@ targets:
       - path: ShootAssist
         excludes:
           - "**/*.xcassets/*/Contents.json"
+          # StoreKit Testing 配置文件严禁进入 Release bundle（App Review 会扫到拒审）
+          # 仅在 Xcode Scheme → Run → Options → StoreKit Configuration 里手动挂载
+          - "**/*.storekit"
     resources:
       - path: ShootAssist/Assets.xcassets
       - path: ShootAssist/PrivacyInfo.xcprivacy
