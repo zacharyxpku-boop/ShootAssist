@@ -1,9 +1,9 @@
 import SwiftUI
-import Vision
 import AVFoundation
-import Combine
-import Speech
 
+/// 视频模式 ViewModel — 仅负责画中画参考视频 + 倒计时延时。
+/// 历史版本的对口型 / 歌词识别 / Vision 骨架在 v1.0 被砍，
+/// 那些代码放在 git 历史里，想回滚就 checkout。
 class VideoModeViewModel: ObservableObject {
     @Published var selectedDelay: DelayOption = .three
     @Published var isCountingDown = false
@@ -19,44 +19,7 @@ class VideoModeViewModel: ObservableObject {
     /// true 时录制开始让用户跟着原音乐节奏跳舞
     @Published var pipAudioEnabled: Bool = false
 
-    // MARK: - 对口型歌词（预设）
-    @Published var selectedSong: SongLyrics = lyricDatabase[0]
-    @Published var currentLyricIndex = 0
-    @Published var showSongSelector = false
-    @Published var simulatedPlaybackTime: TimeInterval = 0
-
-    // MARK: - 对口型：用户自定义音乐
-    @Published var customMusicURL: URL?
-    @Published var customMusicName: String = ""
-    @Published var isRecognizingLyrics: Bool = false
-    @Published var customSongLyrics: SongLyrics?
-    @Published var lyricRecognitionError: String?
-    @Published var showAudioPicker: Bool = false
-
-    // MARK: - 对口型：从视频提取音频
-    @Published var showVideoPickerForLipSync: Bool = false
-    @Published var isExtractingVideoAudio: Bool = false
-
-    /// 当前生效的歌曲（自定义优先）
-    var activeSong: SongLyrics { customSongLyrics ?? selectedSong }
-
-    // MARK: - Vision 实时关键点
-    @Published var liveJoints: [VNHumanBodyPoseObservation.JointName: CGPoint] = [:]
-
     private var countdownTimer: Timer?
-    private var lyricTimer: Timer?
-    private var cancellables = Set<AnyCancellable>()
-    private var lipSyncAudioPlayer: AVAudioPlayer?
-
-    // MARK: - 绑定 VisionService
-
-    func bindVision(_ visionService: VisionService) {
-        cancellables.removeAll()
-        visionService.$bodyJoints
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] joints in self?.liveJoints = joints }
-            .store(in: &cancellables)
-    }
 
     // MARK: - 画中画控制
 
@@ -114,147 +77,9 @@ class VideoModeViewModel: ObservableObject {
         }
     }
 
-    // MARK: - 自定义音乐导入 & 歌词识别
-
-    func importCustomAudio(url: URL) {
-        customMusicURL = url
-        customMusicName = url.deletingPathExtension().lastPathComponent
-        isRecognizingLyrics = true
-        lyricRecognitionError = nil
-        customSongLyrics = nil
-
-        Task {
-            let lines = await LyricRecognitionService.shared.recognizeLyrics(from: url)
-            await MainActor.run {
-                self.isRecognizingLyrics = false
-                if lines.isEmpty {
-                    self.lyricRecognitionError = "未识别到歌词，将显示节拍提示"
-                    let beatLines: [LyricLine] = (0..<30).map { i in
-                        LyricLine(text: "\u{266A}  \u{266A}  \u{266A}",
-                                  startTime: Double(i) * 2.0,
-                                  endTime:   Double(i) * 2.0 + 2.0)
-                    }
-                    self.customSongLyrics = SongLyrics(songName: self.customMusicName,
-                                                       artist: "自定义",
-                                                       lines: beatLines)
-                } else {
-                    self.customSongLyrics = SongLyrics(songName: self.customMusicName,
-                                                       artist: "自定义",
-                                                       lines: lines)
-                }
-                self.stopLyricScroll()
-                self.startLyricScroll()
-            }
-        }
-    }
-
-    /// 从本地视频提取音频，走歌词识别流程
-    func importVideoForLipSync(asset: AVAsset) {
-        isExtractingVideoAudio = true
-        lyricRecognitionError = nil
-        Task {
-            let audioURL = await Self.extractAudio(from: asset)
-            await MainActor.run {
-                self.isExtractingVideoAudio = false
-                if let url = audioURL {
-                    self.importCustomAudio(url: url)
-                } else {
-                    self.lyricRecognitionError = "无法读取这个视频的音频，换一个带音乐的视频试试"
-                }
-            }
-        }
-    }
-
-    /// 从视频中提取音频（原 VideoAnalysisService.extractAudio 移入此处）
-    private static func extractAudio(from asset: AVAsset) async -> URL? {
-        guard (try? await asset.loadTracks(withMediaType: .audio).first) != nil else { return nil }
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("sa_audio_\(Int(Date().timeIntervalSince1970)).m4a")
-        try? FileManager.default.removeItem(at: outputURL)
-
-        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else { return nil }
-        exportSession.outputURL = outputURL
-        exportSession.outputFileType = .m4a
-        await exportSession.export()
-
-        return exportSession.status == .completed ? outputURL : nil
-    }
-
-    func clearCustomMusic() {
-        customMusicURL = nil
-        customMusicName = ""
-        customSongLyrics = nil
-        lyricRecognitionError = nil
-        stopLipSyncAudio()
-        stopLyricScroll()
-    }
-
-    // MARK: - 对口型音频播放
-
-    func startLipSyncAudio() {
-        guard let url = customMusicURL else { return }
-        // 同 activatePlaybackRecordSession 的幂等思路：若 AVCaptureSession 正在跑，
-        // mid-flight setCategory 会触发 interruption 导致录制音频异常
-        let session = AVAudioSession.sharedInstance()
-        let wantCategory: AVAudioSession.Category = .playAndRecord
-        let wantOptions: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .mixWithOthers, .allowBluetooth]
-        do {
-            if session.category != wantCategory || session.categoryOptions != wantOptions {
-                try session.setCategory(wantCategory, mode: .default, options: wantOptions)
-            }
-            try session.setActive(true, options: .notifyOthersOnDeactivation)
-        } catch { return }
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.lipSyncAudioPlayer = try? AVAudioPlayer(contentsOf: url)
-            self.lipSyncAudioPlayer?.prepareToPlay()
-            self.lipSyncAudioPlayer?.play()
-        }
-    }
-
-    func stopLipSyncAudio() {
-        let wasPlaying = lipSyncAudioPlayer?.isPlaying ?? false
-        lipSyncAudioPlayer?.stop()
-        lipSyncAudioPlayer = nil
-        if wasPlaying { deactivateAudioSessionIfIdle() }
-    }
-
+    /// 录制结束后让别的 App 恢复音频
     func deactivateAudioSessionIfIdle() {
-        guard !(lipSyncAudioPlayer?.isPlaying ?? false) else { return }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
-    }
-
-    // MARK: - 歌词滚动
-
-    private var lyricStartDate: Date?
-
-    func startLyricScroll() {
-        stopLyricScroll()
-        currentLyricIndex = 0
-        simulatedPlaybackTime = 0
-        lyricStartDate = Date()
-        lyricTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
-            guard let self, let startDate = self.lyricStartDate else { return }
-            let elapsed = Date().timeIntervalSince(startDate)
-            self.simulatedPlaybackTime = elapsed
-            let lines = self.activeSong.lines
-            let newIndex = lines.lastIndex(where: { $0.startTime <= elapsed }) ?? 0
-            if newIndex != self.currentLyricIndex {
-                withAnimation(.easeInOut(duration: 0.3)) { self.currentLyricIndex = newIndex }
-            }
-            if let last = lines.last, elapsed > last.endTime + 1.0 {
-                self.lyricStartDate = Date()
-                self.simulatedPlaybackTime = 0
-                self.currentLyricIndex = 0
-            }
-        }
-    }
-
-    func stopLyricScroll() {
-        lyricTimer?.invalidate()
-        lyricTimer = nil
-        simulatedPlaybackTime = 0
-        lyricStartDate = nil
     }
 
     // MARK: - 延时倒计时
@@ -289,8 +114,5 @@ class VideoModeViewModel: ObservableObject {
 
     deinit {
         countdownTimer?.invalidate()
-        lyricTimer?.invalidate()
-        lipSyncAudioPlayer?.stop()
-        cancellables.removeAll()
     }
 }
