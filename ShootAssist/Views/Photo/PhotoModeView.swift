@@ -6,6 +6,10 @@ struct PhotoModeView: View {
     /// 从首页英雄区直接进入时传 true，自动选中拍同款并打开图片选择器
     var launchCloneDirectly: Bool = false
 
+    /// 从爆款库跳进来时携带的姿势 preset — 仅用作画面顶部悬浮引导条
+    /// TODO: 未来若要用 preset 影响 PoseMatching 的参考骨架或提示词，在 PhotoModeViewModel 接入
+    var suggestedPreset: PosePreset? = nil
+
     @StateObject private var cameraVM = CameraViewModel()
     @StateObject private var photoVM = PhotoModeViewModel()
     @Environment(\.dismiss) private var dismiss
@@ -19,6 +23,7 @@ struct PhotoModeView: View {
     @State private var showSkeletonHint: Bool = false // 骨架拖拽首次引导
     @State private var showShareSheet: Bool = false
     @State private var shareItems: [Any] = []
+    @State private var showingPresetHint: Bool = true // 爆款库跳入时的悬浮引导条，6 秒后自动收起
 
     var body: some View {
         ZStack {
@@ -195,6 +200,47 @@ struct PhotoModeView: View {
                         )
                     }
 
+                    // 爆款库「用这个姿势拍」跳入时的拍摄引导悬浮条
+                    // 默认显示 6 秒后自动淡出；suggestedPreset == nil 时完全不渲染
+                    if let preset = suggestedPreset, showingPresetHint {
+                        VStack {
+                            HStack(spacing: 10) {
+                                Text(preset.sceneEmoji)
+                                    .font(.system(size: 20))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(preset.name)
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    Text(preset.cameraHint)
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.white.opacity(0.7))
+                                        .lineLimit(2)
+                                }
+                                Spacer()
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.25)) {
+                                        showingPresetHint = false
+                                    }
+                                }) {
+                                    Image(systemName: "xmark.circle")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.white.opacity(0.8))
+                                }
+                                .accessibilityLabel("关闭姿势引导")
+                            }
+                            .padding(.horizontal, 12).padding(.vertical, 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.black.opacity(0.6))
+                            )
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
+                            Spacer()
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
                     // 低光 / 长时间未检测到人物提示
                     if cameraVM.visionService.isLowLightWarning && photoVM.currentSubMode != .influencerClone {
                         LowLightHint()
@@ -297,6 +343,14 @@ struct PhotoModeView: View {
                 photoVM.currentSubMode = .influencerClone
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                     photoVM.showImagePicker = true
+                }
+            }
+            // 爆款库跳入：6 秒后自动隐藏顶部悬浮引导条
+            if suggestedPreset != nil {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 6.0) {
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        showingPresetHint = false
+                    }
                 }
             }
         }

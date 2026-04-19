@@ -262,6 +262,12 @@ private struct PresetDetailSheet: View {
     let preset: PosePreset
     @Environment(\.dismiss) private var dismiss
 
+    // 分享卡片状态
+    @State private var shareImage: UIImage?
+    @State private var showingShareSheet = false
+    @State private var isGenerating = false
+    @State private var showGenerateFailToast = false
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -312,10 +318,12 @@ private struct PresetDetailSheet: View {
                         .padding(.horizontal, 4)
 
                         // 「用这个姿势拍」按钮
-                        // TODO: 把 preset 数据传入 PhotoModeView 作为姿势引导，
-                        // 目前 PhotoModeView 仅支持 launchCloneDirectly，后续扩展参数
+                        // 把 preset 传入 PhotoModeView，画面顶部会显示 6 秒悬浮引导条
+                        // sheet 内有独立 NavigationStack，这里 push 会停在 sheet 内，
+                        // 关闭 sheet 即可回到 PoseLibraryView —— 比用 NotificationCenter
+                        // 或提升 binding 到 HomeView 都简洁，不需动外层 NavigationPath
                         NavigationLink {
-                            PhotoModeView(launchCloneDirectly: true)
+                            PhotoModeView(launchCloneDirectly: true, suggestedPreset: preset)
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "camera.fill")
