@@ -64,6 +64,32 @@ workflows:
             DEVELOPMENT_TEAM=THXYDBVXGW \
             PROVISIONING_PROFILE="$UUID"
 
+      - name: Release Bundle Self-Check
+        script: |
+          # App Review 拒审硬伤自检 —— Archive 后、Export 前拦截
+          # 1) .storekit 测试配置不得入包（2.3.1 / 2.5.1）
+          # 2) Info.plist 4 条隐私字符串齐全（5.1.1）
+          # 3) PrivacyInfo.xcprivacy 必须存在（iOS 17 强制）
+          APP_BUNDLE="$CM_BUILD_DIR/ShootAssist.xcarchive/Products/Applications/ShootAssist.app"
+          [ -d "$APP_BUNDLE" ] || { echo "✗ 没找到 $APP_BUNDLE"; exit 1; }
+
+          echo "▶ 扫描 .storekit 测试文件"
+          HITS=$(find "$APP_BUNDLE" \( -iname "*.storekit" -o -iname "*.storekitconfig" \) 2>/dev/null || true)
+          if [ -n "$HITS" ]; then
+            echo "✗ Release bundle 混入 StoreKit 测试配置："; echo "$HITS"; exit 1
+          fi
+
+          echo "▶ 核对 Info.plist 隐私字符串"
+          INFO="$APP_BUNDLE/Info.plist"
+          for k in NSCameraUsageDescription NSMicrophoneUsageDescription NSPhotoLibraryAddUsageDescription; do
+            /usr/libexec/PlistBuddy -c "Print :$k" "$INFO" >/dev/null 2>&1 || { echo "✗ 缺 $k"; exit 1; }
+          done
+
+          echo "▶ 核对 PrivacyInfo.xcprivacy"
+          [ -f "$APP_BUNDLE/PrivacyInfo.xcprivacy" ] || { echo "✗ 缺 PrivacyInfo.xcprivacy"; exit 1; }
+
+          echo "✓ Release bundle 自检通过"
+
       - name: Export IPA
         script: |
           rm -f /tmp/ExportOptions.plist

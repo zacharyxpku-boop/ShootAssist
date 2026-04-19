@@ -101,7 +101,10 @@ struct HomeView: View {
             }
             // 齿轮按钮 only 在根页面显示：push 到子页面后 navigationPath 非空
             // 条件隐藏彻底避免了和 PhotoModeView / VideoModeView 返回箭头的物理重叠
-            .overlay(alignment: .topLeading) {
+            .safeAreaInset(edge: .top, alignment: .leading, spacing: 0) {
+                // safeArea 驱动齿轮位置：Dynamic Island 机型自动下移一个 inset 高度，
+                // 旧版 hard-coded padding(.top, 50) 在 iPhone 15 Pro/16 Pro 上会被岛吃掉。
+                // 仅在根页面显示 —— navigationPath 非空时 push 到子页面，齿轮必须让位给返回箭头。
                 if navigationPath.isEmpty {
                     Button(action: { showSettings = true }) {
                         Image(systemName: "gearshape")
@@ -110,7 +113,9 @@ struct HomeView: View {
                             .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("设置")
-                    .padding(.top, 50).padding(.leading, 4)
+                    .padding(.leading, 4)
+                } else {
+                    Color.clear.frame(height: 0)
                 }
             }
         }

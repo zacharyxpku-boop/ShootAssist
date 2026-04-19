@@ -52,8 +52,9 @@ REQUIRED_KEYS=(
   NSCameraUsageDescription
   NSMicrophoneUsageDescription
   NSPhotoLibraryAddUsageDescription
-  NSPhotoLibraryUsageDescription
 )
+# 注意：不再要求 NSPhotoLibraryUsageDescription — 我们只用 PHPicker + addOnly，
+# 声明整读权限会被 App Review 质疑「为什么要全读」。
 MISSING=()
 for key in "${REQUIRED_KEYS[@]}"; do
   if ! /usr/libexec/PlistBuddy -c "Print :$key" "$INFO_PLIST" >/dev/null 2>&1; then
@@ -76,7 +77,7 @@ fi
 echo ""
 echo "✓ Release bundle 自检通过："
 echo "   - 无 .storekit 测试文件"
-echo "   - 4 条隐私字符串齐全"
+echo "   - 3 条隐私字符串齐全（Camera / Microphone / PhotoLibraryAdd）"
 echo "   - PrivacyInfo.xcprivacy 存在"
 echo ""
 echo "下一步：xcodebuild -exportArchive 生成 .ipa 后再跑一次本脚本对 .ipa 解压后的 .app 扫一遍。"

@@ -6,8 +6,10 @@ import Combine
 class PhotoModeViewModel: ObservableObject {
     @Published var currentSubMode: PhotoSubMode = .influencerClone
 
-    // MARK: - 每日免费次数（内测阶段 100 次/天，后续 Pro 无限）
-    static let freeDailyLimit = 100
+    // MARK: - 每日免费次数
+    // 3 次/天 —— 与 Paywall 宣传文案「免费版每天 3 次」严格对齐
+    // 上调到 100 是内测遗留（内测人数少无所谓），正式版免费送到 100 次直接毁付费转化
+    static let freeDailyLimit = 3
     @AppStorage("sa_clone_date")  private var storedDate: String = ""
     @AppStorage("sa_clone_count") private var storedCount: Int = 0
 
@@ -29,11 +31,12 @@ class PhotoModeViewModel: ObservableObject {
         UserDefaults.standard.set(total + 1, forKey: totalKey)
     }
 
-    /// 是否已达免费上限（累计上限 500 次 防日期篡改无限用）
+    /// 是否已达免费上限（累计上限 30 次 防日期篡改无限用）
+    /// 3 次/天 × 10 天 ≈ 30 次硬上限；正常用户 10 天内不付费就是没有付费意愿
     func isFreeLimitReached(isPro: Bool) -> Bool {
         guard !isPro else { return false }
         let totalUsed = UserDefaults.standard.integer(forKey: "sa_clone_total")
-        if totalUsed >= 500 { return true }  // 累计硬上限
+        if totalUsed >= 30 { return true }  // 累计硬上限
         return freeUsesRemaining <= 0
     }
 

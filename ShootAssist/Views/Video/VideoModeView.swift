@@ -79,6 +79,10 @@ struct VideoModeView: View {
                     )
 
                     GeometryReader { geo in
+                        // iPhone 14/15/16 Pro 系 Dynamic Island 高约 37-59pt，预览容器本身
+                        // 在 safeAreaInset 内已经让开状态栏，但 geo.safeAreaInsets.top 仍会
+                        // 把真实 inset 暴露给我们。PiP 和 REC 都下移一个 inset 高度避免重叠。
+                        let topOffset = max(geo.safeAreaInsets.top, 12)
                         ZStack {
                             // 画中画参考视频
                             if let url = videoVM.referenceVideoURL {
@@ -91,11 +95,11 @@ struct VideoModeView: View {
                                 )
                                 .position(
                                     x: geo.size.width / 6 + 8,
-                                    y: geo.size.width / 6 * 16 / 9 / 2 + 8
+                                    y: geo.size.width / 6 * 16 / 9 / 2 + topOffset
                                 )
                             }
 
-                            // REC 指示器
+                            // REC 指示器 — y 加 topOffset 避开 Dynamic Island
                             if cameraVM.isRecording {
                                 HStack(spacing: 4) {
                                     RecDot()
@@ -105,7 +109,7 @@ struct VideoModeView: View {
                                 }
                                 .padding(.horizontal, 8).padding(.vertical, 4)
                                 .background(Capsule().fill(Color.black.opacity(0.5)))
-                                .position(x: geo.size.width / 2, y: 20)
+                                .position(x: geo.size.width / 2, y: topOffset + 12)
                             }
 
                             // 清除参考视频按钮
