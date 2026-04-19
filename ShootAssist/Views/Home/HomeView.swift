@@ -118,7 +118,7 @@ struct HomeView: View {
             PaywallView().environmentObject(subManager)
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView()
+            SettingsView().environmentObject(subManager)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { logoOffset = 4 }
@@ -317,8 +317,12 @@ private struct ProBadgePill: View {
 // MARK: - 设置页（含邀请码）
 
 struct SettingsView: View {
+    @EnvironmentObject var subManager: SubscriptionManager
     @State private var referralCode = ReferralManager.getReferralCode()
     @State private var codeCopied = false
+    @State private var enteredCode: String = ""
+    @State private var redeemFeedback: String? = nil
+    @State private var redeemFeedbackIsSuccess = false
 
     // MARK: - 使用统计
 
@@ -362,6 +366,20 @@ struct SettingsView: View {
 
                 // MARK: 邀请好友
                 Section {
+                    // 试用中 → 顶部显示剩余天数条
+                    if subManager.trialEndDate != nil, subManager.trialDaysRemaining > 0 {
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 13))
+                                .foregroundColor(.rosePink)
+                            Text("Pro 试用中，剩余 \(subManager.trialDaysRemaining) 天")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.rosePink)
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                    }
+
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("我的邀请码")
@@ -391,11 +409,46 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
 
-                    Text("把邀请码发给朋友，让 TA 下载小白快门时填入，一起拍出好看的照片")
+                    Text("把邀请码发给朋友，双方各得 7 天 Pro 试用")
                         .font(.system(size: 12))
                         .foregroundColor(.midBerryBrown)
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
+
+                    // 输入邀请码兑换区
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("输入邀请码")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.berryBrown)
+                            .padding(.top, 4)
+
+                        HStack(spacing: 8) {
+                            TextField("SA-XXXXXX", text: $enteredCode)
+                                .textInputAutocapitalization(.characters)
+                                .autocorrectionDisabled()
+                                .font(.system(size: 15, weight: .medium))
+                                .padding(.horizontal, 12).padding(.vertical, 10)
+                                .background(Color.rosePink.opacity(0.06))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                            Button(action: redeem) {
+                                Text("兑换")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 16).padding(.vertical, 10)
+                                    .background(Capsule().fill(Color.rosePink))
+                            }
+                            .disabled(enteredCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                            .opacity(enteredCode.trimmingCharacters(in: .whitespaces).isEmpty ? 0.4 : 1)
+                        }
+
+                        if let feedback = redeemFeedback {
+                            Text(feedback)
+                                .font(.system(size: 12))
+                                .foregroundColor(redeemFeedbackIsSuccess ? .green : .red.opacity(0.8))
+                        }
+                    }
+                    .padding(.vertical, 4)
                 } header: {
                     Text("邀请好友")
                 }
@@ -423,6 +476,25 @@ struct SettingsView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { codeCopied = true }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             withAnimation { codeCopied = false }
+        }
+    }
+
+    private func redeem() {
+        let result = ReferralManager.shared.redeem(code: enteredCode, subManager: subManager)
+        switch result {
+        case .success:
+            redeemFeedback = "已激活 7 天 Pro 试用，尽情拍吧"
+            redeemFeedbackIsSuccess = true
+            enteredCode = ""
+        case .alreadyRedeemed:
+            redeemFeedback = "你已经兑换过邀请码了"
+            redeemFeedbackIsSuccess = false
+        case .ownCode:
+            redeemFeedback = "不能用自己的邀请码哦"
+            redeemFeedbackIsSuccess = false
+        case .invalidFormat:
+            redeemFeedback = "邀请码格式不对，应为 SA-XXXXXX"
+            redeemFeedbackIsSuccess = false
         }
     }
 }

@@ -12,6 +12,9 @@ final class SubscriptionManager: ObservableObject {
 
     private let productIDs: Set<String> = [annualID, monthlyID]
 
+    /// UserDefaults key：试用期结束时间戳（Double，timeIntervalSince1970）
+    private static let trialEndDateKey = "pro_trial_end_date"
+
     @Published var isPro = false
     @Published var products: [Product] = []    // 按月价升序：monthly → annual
     @Published var isPurchasing = false
@@ -19,14 +22,56 @@ final class SubscriptionManager: ObservableObject {
     /// 两轮 loadProducts 都失败后的用户可见错误；Paywall 需要读这个给「重试」按钮
     @Published var loadError: String? = nil
 
+    /// 邀请奖励试用期结束时间；nil = 无试用。试用期内 isPro 同样为 true，但不是真订阅。
+    @Published var trialEndDate: Date? = nil
+
     private var transactionListener: Task<Void, Error>?
 
     init() {
+        // 先从本地恢复试用期，避免冷启动瞬间 isPro 闪烁
+        if let ts = UserDefaults.standard.object(forKey: Self.trialEndDateKey) as? Double {
+            let date = Date(timeIntervalSince1970: ts)
+            if date > Date() {
+                trialEndDate = date
+                isPro = true
+            } else {
+                // 已过期的残留 key 顺手清掉
+                UserDefaults.standard.removeObject(forKey: Self.trialEndDateKey)
+            }
+        }
         transactionListener = listenForTransactions()
         Task {
             await loadProducts()
             await refreshStatus()
         }
+    }
+
+    // MARK: - 试用期（邀请奖励）
+
+    /// 发放 / 延长 Pro 试用期。
+    /// - 无试用或已过期 → 从现在起 days 天
+    /// - 试用期内 → 在现有 trialEndDate 基础上延长 days 天（叠加而非重置）
+    func grantTrial(days: Int) {
+        let now = Date()
+        let base: Date
+        if let end = trialEndDate, end > now {
+            base = end            // 续期：接在现有到期日之后
+        } else {
+            base = now            // 新开：从当下起算
+        }
+        let newEnd = base.addingTimeInterval(TimeInterval(days) * 86_400)
+        trialEndDate = newEnd
+        UserDefaults.standard.set(newEnd.timeIntervalSince1970, forKey: Self.trialEndDateKey)
+        isPro = true
+        Analytics.track("trial_granted", properties: ["days": days])
+    }
+
+    /// 试用剩余天数（向上取整，≤0 返回 0）。UI 展示用。
+    var trialDaysRemaining: Int {
+        guard let end = trialEndDate else { return 0 }
+        let secs = end.timeIntervalSinceNow
+        guard secs > 0 else { return 0 }
+        return Int(ceil(secs / 86_400))
     }
 
     deinit { transactionListener?.cancel() }
@@ -103,15 +148,28 @@ final class SubscriptionManager: ObservableObject {
     // MARK: - 刷新订阅状态
 
     func refreshStatus() async {
-        var hasPro = false
+        var hasRealSub = false
         for await result in Transaction.currentEntitlements {
             guard case .verified(let tx) = result,
                   productIDs.contains(tx.productID),
                   tx.revocationDate == nil else { continue }
-            hasPro = true
+            hasRealSub = true
             break
         }
-        isPro = hasPro
+
+        // 试用期过期则清空，避免老数据让 isPro 一直 true
+        var trialActive = false
+        if let end = trialEndDate {
+            if end > Date() {
+                trialActive = true
+            } else {
+                trialEndDate = nil
+                UserDefaults.standard.removeObject(forKey: Self.trialEndDateKey)
+            }
+        }
+
+        // 真订阅 OR 有效试用，任一即 Pro
+        isPro = hasRealSub || trialActive
     }
 
     // MARK: - 内部工具
