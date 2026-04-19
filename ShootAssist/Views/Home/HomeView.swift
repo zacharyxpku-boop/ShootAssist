@@ -213,7 +213,9 @@ private struct HeroCloneCard: View {
                         }
 
                         // 说明
-                        Text("上传参考图 · AI 识别姿势\n实时对齐，闭眼就能拍出来")
+                        // 审核合规：去掉「AI 识别姿势」「闭眼就能拍出来」— 前者让审核员期待 AI 精度验证，
+                        // 后者不利于无障碍评估；用「姿势剪影 / 对着影子站」回归实际能力
+                        Text("上传喜欢的照片，提取姿势剪影\n叠在相机里，对着影子站好再拍")
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.8))
                             .lineSpacing(3)
@@ -261,7 +263,7 @@ private struct SmallVideoCard: View {
             Text("🎬").font(.system(size: 24))
             VStack(alignment: .leading, spacing: 2) {
                 Text("录像").font(.system(size: 14, weight: .bold)).foregroundColor(.berryBrown)
-                Text("跟拍舞蹈 · 对口型").font(.system(size: 10)).foregroundColor(.paleRose)
+                Text("参考视频 · 画中画跟拍").font(.system(size: 10)).foregroundColor(.paleRose)
             }
             Spacer()
             if !isPro {
@@ -280,7 +282,7 @@ private struct SmallPoseCard: View {
             Text("💡").font(.system(size: 24))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Pose 灵感").font(.system(size: 14, weight: .bold)).foregroundColor(.berryBrown)
-                Text("40+ 热门 Pose").font(.system(size: 10)).foregroundColor(.paleRose)
+                Text("30 款爆款 Pose").font(.system(size: 10)).foregroundColor(.paleRose)
             }
             Spacer()
         }

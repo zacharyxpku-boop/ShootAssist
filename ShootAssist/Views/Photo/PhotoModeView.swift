@@ -286,16 +286,22 @@ struct PhotoModeView: View {
                         Button(action: {
                             if photoVM.currentSubMode == .influencerClone,
                                let ref = photoVM.referenceImage {
+                                // 合规：真实 pose 分数才拼对比卡，无分数时退回普通分享。
+                                // 之前 Int.random(85...95) 造假匹配度 — App Review 1.6 / 2.3.1 误导展示红线
                                 let rawScore = photoVM.poseMatchResult.score
-                                let percent: Int = rawScore > 0
-                                    ? Int((rawScore * 100).rounded())
-                                    : Int.random(in: 85...95)  // 无分数时给乐观 placeholder（匹配 Paywall 承诺）
-                                let card = ComparisonCardService.shared.generate(
-                                    reference: ref, captured: thumb, score: percent
-                                )
-                                shareItems = [card, ReferralManager.shareAppendText()]
-                                ReferralManager.recordShareAction()
-                                Analytics.track(Analytics.Event.comparisonCardShared)
+                                if rawScore > 0 {
+                                    let percent = Int((rawScore * 100).rounded())
+                                    let card = ComparisonCardService.shared.generate(
+                                        reference: ref, captured: thumb, score: percent
+                                    )
+                                    shareItems = [card, ReferralManager.shareAppendText()]
+                                    ReferralManager.recordShareAction()
+                                    Analytics.track(Analytics.Event.comparisonCardShared)
+                                } else {
+                                    shareItems = [thumb, ReferralManager.shareAppendText()]
+                                    ReferralManager.recordShareAction()
+                                    Analytics.track(Analytics.Event.photoShared)
+                                }
                             } else {
                                 shareItems = [thumb, ReferralManager.shareAppendText()]
                                 ReferralManager.recordShareAction()

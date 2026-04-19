@@ -30,10 +30,6 @@
 	<string>录制视频时需要使用麦克风同步录入现场声音和配乐，方便后期剪辑</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>需要将您拍摄的照片和视频保存到相册</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>需要访问相册以导入参考照片或舞蹈视频</string>
-	<key>NSPhotoLibraryLimitedAccessUsageDescription</key>
-	<string>您已选择有限访问权限。如需导入更多参考照片，可在设置中调整为「完全访问」</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
