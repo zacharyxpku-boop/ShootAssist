@@ -317,6 +317,38 @@ private struct PresetDetailSheet: View {
                         }
                         .padding(.horizontal, 4)
 
+                        // 「分享这个姿势」按钮（次级，outlined）
+                        // 点击 → 离屏渲染带邀请码的 1080x1350 卡片 → 系统分享面板
+                        // 不带 URL（小红书禁外链），只分享图片
+                        Button {
+                            generateAndShare()
+                        } label: {
+                            HStack(spacing: 8) {
+                                if isGenerating {
+                                    ProgressView()
+                                        .tint(.rosePink)
+                                        .scaleEffect(0.8)
+                                } else {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.system(size: 15))
+                                }
+                                Text(isGenerating ? "生成中…" : "分享这个姿势")
+                                    .font(.system(size: 15, weight: .semibold))
+                            }
+                            .foregroundColor(.rosePink)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(
+                                Capsule()
+                                    .fill(Color.white.opacity(0.9))
+                                    .overlay(
+                                        Capsule().stroke(Color.rosePink.opacity(0.55), lineWidth: 1.2)
+                                    )
+                            )
+                        }
+                        .disabled(isGenerating)
+                        .padding(.top, 8)
+
                         // 「用这个姿势拍」按钮
                         // 把 preset 传入 PhotoModeView，画面顶部会显示 6 秒悬浮引导条
                         // sheet 内有独立 NavigationStack，这里 push 会停在 sheet 内，
@@ -355,6 +387,55 @@ private struct PresetDetailSheet: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("关闭") { dismiss() }
                         .foregroundColor(.rosePink)
+                }
+            }
+            .sheet(isPresented: $showingShareSheet, onDismiss: { shareImage = nil }) {
+                if let img = shareImage {
+                    ShareSheet(items: [img])
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showGenerateFailToast {
+                    Text("分享卡片生成失败")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.black.opacity(0.75)))
+                        .padding(.bottom, 40)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+        }
+    }
+
+    // MARK: - 分享卡片生成
+    private func generateAndShare() {
+        guard !isGenerating else { return }
+        isGenerating = true
+        let preset = self.preset
+        let code = ReferralManager.getReferralCode()
+
+        Task {
+            // 离线绘制放到后台线程避开主线程卡顿
+            let image = await Task.detached(priority: .userInitiated) {
+                PosePresetCardRenderer.render(preset: preset, referralCode: code)
+            }.value
+
+            await MainActor.run {
+                isGenerating = false
+                if let img = image {
+                    shareImage = img
+                    showingShareSheet = true
+                } else {
+                    withAnimation { showGenerateFailToast = true }
+                    // 2 秒后自动消失
+                    Task {
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        await MainActor.run {
+                            withAnimation { showGenerateFailToast = false }
+                        }
+                    }
                 }
             }
         }
