@@ -67,6 +67,7 @@ ml/models/*.onnx
 ml/models/*.onnx.data
 ml/models/*.tflite
 ml/models/*.task
+ml/models/*_label_map.json
 ml/models/gesture_export/
 ml/models/gesture_saved_model/
 ml/models/gesture_saved/
