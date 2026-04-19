@@ -261,7 +261,7 @@ private struct SmallVideoCard: View {
             Text("🎬").font(.system(size: 24))
             VStack(alignment: .leading, spacing: 2) {
                 Text("录像").font(.system(size: 14, weight: .bold)).foregroundColor(.berryBrown)
-                Text("手势舞 · 对口型").font(.system(size: 10)).foregroundColor(.paleRose)
+                Text("跟拍舞蹈 · 对口型").font(.system(size: 10)).foregroundColor(.paleRose)
             }
             Spacer()
             if !isPro {

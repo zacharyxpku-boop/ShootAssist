@@ -82,13 +82,13 @@ struct PaywallView: View {
                             Divider().padding(.horizontal, 16).opacity(0.4)
 
                             ProFeatureRow(emoji: "🎬",
-                                          title: "导入任意舞蹈视频跟拍",
-                                          subtitle: "不只是 Demo，想跟哪首跟哪首\nAI 30 秒提取动作引导，emoji 提示跟着跳")
+                                          title: "画中画参考视频跟拍",
+                                          subtitle: "导入任意舞蹈/教程视频\n悬浮小窗边看边跳，录制不录入水印")
                             Divider().padding(.horizontal, 16).opacity(0.4)
 
                             ProFeatureRow(emoji: "🚀",
                                           title: "新功能第一个用",
-                                          subtitle: "AR Pose 叠加等上线 Pro 先解锁\n视频录制完自动加「小白快门」水印")
+                                          subtitle: "视频录制完自动加「小白快门」水印\n后续新功能首发 Pro 专享")
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 16)
