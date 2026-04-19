@@ -69,6 +69,35 @@ struct PaywallView: View {
                         }
                         .padding(.top, 4)
 
+                        // MARK: 试用期状态条（仅试用中显示）
+                        if isInTrial {
+                            HStack(spacing: 10) {
+                                Text("⏰")
+                                    .font(.system(size: 18))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("试用中 · 剩 \(subManager.trialDaysRemaining) 天")
+                                        .font(.system(size: 14, weight: .bold))
+                                        .foregroundColor(Color(hex: "3D2A2F"))
+                                    Text("订阅后无缝衔接，不中断体验")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(Color(hex: "8B6E75"))
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color(hex: "FFF5E6"))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color(hex: "FF8C42").opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                        }
+
                         // MARK: 功能列表
                         VStack(spacing: 0) {
                             ProFeatureRow(emoji: "🪞",
@@ -162,7 +191,7 @@ struct PaywallView: View {
                                 if subManager.isPurchasing {
                                     ProgressView().tint(.white)
                                 } else {
-                                    Text("立即解锁 Pro ✦")
+                                    Text(ctaText())
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(.white)
                                 }
@@ -229,7 +258,9 @@ struct PaywallView: View {
         }
         .onChange(of: subManager.products) { _ in preselectAnnual() }
         .onChange(of: subManager.isPro) { isPro in
-            if isPro { dismiss() }
+            // 试用期内 isPro 也是 true，但不应 dismiss —— 继续展示 Paywall 引导转化
+            // 仅当真付费（无试用到期时间）时才关闭
+            if isPro && !isInTrial { dismiss() }
         }
         .onChange(of: subManager.purchaseError) { err in
             if err != nil { showErrorAlert = true }
@@ -244,6 +275,25 @@ struct PaywallView: View {
     }
 
     // MARK: - 辅助
+
+    /// 是否处于邀请码 7 天免费试用期
+    /// trialEndDate 过期但还没被 refreshStatus 清掉时，按"无试用"处理
+    private var isInTrial: Bool {
+        guard let end = subManager.trialEndDate else { return false }
+        return end > Date()
+    }
+
+    /// 主 CTA 文案：试用中引导锁定长期订阅，避免试用结束断档
+    private func ctaText() -> String {
+        if isInTrial {
+            if let product = subManager.products.first(where: { $0.id == selectedProductID }),
+               product.id.contains("annual") {
+                return "用 \(product.displayPrice)/年 锁定，试用完不断"
+            }
+            return "继续享受 Pro"
+        }
+        return "立即解锁 Pro ✦"
+    }
 
     private func preselectAnnual() {
         if subManager.products.contains(where: { $0.id == SubscriptionManager.annualID }) {
