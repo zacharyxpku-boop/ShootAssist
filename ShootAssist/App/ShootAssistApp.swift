@@ -14,6 +14,15 @@ struct ShootAssistApp: App {
                     Analytics.track(Analytics.Event.appOpened)
                     // 清理上次 session 残留的临时文件
                     Self.cleanTempFiles()
+                    // 安全网：冷启动若试用剩余 >24h，重排到期前 24h 提醒
+                    // （覆盖 App 被删除/重装、系统清 pending 等边缘场景）
+                    Task { [subManager] in
+                        if let trialEnd = subManager.trialEndDate,
+                           trialEnd.timeIntervalSinceNow > 86_400 {
+                            await TrialNotificationScheduler.shared.requestAuthIfNeeded()
+                            TrialNotificationScheduler.shared.scheduleTrialExpiryReminder(trialEnd: trialEnd)
+                        }
+                    }
                 }
                 .fullScreenCover(isPresented: Binding(
                     get: { !hasSeenOnboarding },

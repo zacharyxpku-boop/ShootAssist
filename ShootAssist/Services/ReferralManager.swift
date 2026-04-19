@@ -94,6 +94,14 @@ final class ReferralManager {
         let count = UserDefaults.standard.integer(forKey: "referral_count")
         UserDefaults.standard.set(count + 1, forKey: "referral_count")
 
+        // 试用到期前 24h 本地推送：先问授权（未定），再排单
+        if let trialEnd = subManager.trialEndDate {
+            Task {
+                await TrialNotificationScheduler.shared.requestAuthIfNeeded()
+                TrialNotificationScheduler.shared.scheduleTrialExpiryReminder(trialEnd: trialEnd)
+            }
+        }
+
         Analytics.track("referral_redeemed", properties: ["code": normalized])
         return .success
     }

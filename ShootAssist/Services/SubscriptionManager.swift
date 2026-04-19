@@ -117,6 +117,8 @@ final class SubscriptionManager: ObservableObject {
                 // 避免 refreshStatus 读 entitlements 时若网络抖动返回空，用户钱扣了但 Pro 未解锁。
                 isPro = true
                 await refreshStatus()
+                // 付费用户不需要「试用到期前 24h」的提醒骚扰
+                TrialNotificationScheduler.shared.cancelTrialExpiryReminder()
                 let plan = product.id.contains("annual") ? "annual" : "monthly"
                 Analytics.track(Analytics.Event.subscriptionPurchased, properties: ["plan": plan])
             case .userCancelled, .pending:
@@ -165,6 +167,8 @@ final class SubscriptionManager: ObservableObject {
             } else {
                 trialEndDate = nil
                 UserDefaults.standard.removeObject(forKey: Self.trialEndDateKey)
+                // 试用已过期，pending 的 24h 提醒若还在也没意义了
+                TrialNotificationScheduler.shared.cancelTrialExpiryReminder()
             }
         }
 
