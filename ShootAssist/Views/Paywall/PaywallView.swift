@@ -102,7 +102,7 @@ struct PaywallView: View {
                         VStack(spacing: 0) {
                             ProFeatureRow(emoji: "🪞",
                                           title: "无限次拍同款",
-                                          subtitle: "免费版每天 3 次，Pro 无限拍\n上传任意参考图，AI 实时骨骼对齐")
+                                          subtitle: "免费版每天 100 次，Pro 无限拍\n上传任意参考图，AI 实时骨骼对齐")
                             Divider().padding(.horizontal, 16).opacity(0.4)
 
                             ProFeatureRow(emoji: "📸",

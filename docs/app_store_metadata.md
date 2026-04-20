@@ -79,7 +79,7 @@ Upload any photo you like. We extract the pose silhouette and overlay it on your
 - 详见 https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 
 【Pro 订阅说明】
-- 免费额度：每天 3 次拍同款、姿势库前 2 类可用
+- 免费额度：每天 100 次拍同款、姿势库前 2 类可用
 - 月度订阅：¥18/月（前 7 天免费试用）
 - 年度订阅：¥98/年（省 63%）
 - 终身解锁：¥198 一次买断
@@ -120,7 +120,7 @@ PRIVACY
 - Details: https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 
 PRO SUBSCRIPTION
-- Free tier: 3 copy-pose shots per day, 2 pose categories
+- Free tier: 100 copy-pose shots per day, 2 pose categories
 - Monthly: $2.99/mo (7-day free trial)
 - Yearly: $14.99/yr (save 63%)
 - Lifetime: $29.99 one-time
