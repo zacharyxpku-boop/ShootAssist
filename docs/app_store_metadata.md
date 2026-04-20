@@ -76,7 +76,7 @@ Upload any photo you like. We extract the pose silhouette and overlay it on your
 【隐私承诺】
 - 姿势识别 100% 设备端（iOS Vision 框架）
 - 照片不上传、不分析、不训练
-- 详见 https://shootassist.app/privacy.html
+- 详见 https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 
 【Pro 订阅说明】
 - 免费额度：每天 3 次拍同款、姿势库前 2 类可用
@@ -85,7 +85,7 @@ Upload any photo you like. We extract the pose silhouette and overlay it on your
 - 终身解锁：¥198 一次买断
 订阅会自动续费，可在「设置 - Apple ID - 订阅」随时关闭。免费试用期内关闭不扣费。
 
-订阅即视为同意我们的用户协议：https://shootassist.app/terms.html
+订阅即视为同意我们的用户协议：https://zacharyxpku-boop.github.io/ShootAssist/terms.html
 ```
 
 （1015 字，留 3000 字余量给 App Review 扩描述或后续版本更新。）
@@ -117,7 +117,7 @@ WHO IT'S FOR
 PRIVACY
 - Pose extraction runs 100% on-device
 - Your photos never leave your phone
-- Details: https://shootassist.app/privacy.html
+- Details: https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 
 PRO SUBSCRIPTION
 - Free tier: 3 copy-pose shots per day, 2 pose categories
@@ -126,7 +126,7 @@ PRO SUBSCRIPTION
 - Lifetime: $29.99 one-time
 Subscriptions auto-renew. Manage or cancel anytime in Settings → Apple ID → Subscriptions. Cancel during the trial to avoid charges.
 
-Terms of Use: https://shootassist.app/terms.html
+Terms of Use: https://zacharyxpku-boop.github.io/ShootAssist/terms.html
 ```
 
 ## 5. 关键词（Keywords, 100 字符上限，逗号分隔）
@@ -144,19 +144,19 @@ pose,camera,photo,selfie,portrait,photography,poser,ghost,overlay,style,trend,ti
 ## 6. 支持 URL
 
 ```
-https://shootassist.app/
+https://zacharyxpku-boop.github.io/ShootAssist/
 ```
 
 ## 7. 营销 URL（可选）
 
 ```
-https://shootassist.app/
+https://zacharyxpku-boop.github.io/ShootAssist/
 ```
 
 ## 8. 隐私政策 URL
 
 ```
-https://shootassist.app/privacy.html
+https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 ```
 
 ## 9. 分级（Age Rating）
@@ -193,7 +193,7 @@ https://shootassist.app/privacy.html
 
 如果审核同学需要跳过额度限制直接体验付费功能，可以在启动后进入「设置 → 兑换邀请码」输入：SA-REVIEW（任意合法邀请码都能直接解锁 7 天 Pro 试用）。
 
-联系方式：support@shootassist.app
+联系方式：zachary.x.pku@gmail.com
 ```
 
 ## 11. Demo 账号
@@ -205,7 +205,7 @@ https://shootassist.app/privacy.html
 - 名：Zack
 - 姓：Xu
 - 电话：+86 138 xxxx xxxx（阁主填）
-- 邮箱：support@shootassist.app
+- 邮箱：zachary.x.pku@gmail.com
 
 ## 13. 版本更新说明（What's New, 4000 字符，首次提审填）
 
@@ -219,7 +219,7 @@ v1.0.0 首发版本：
 - 智能构图：网格 / 水平线 / 站位提示
 - 设备端识别：照片不上传不收集
 
-有任何想法反馈给我们：support@shootassist.app
+有任何想法反馈给我们：zachary.x.pku@gmail.com
 ```
 
 **English (U.S.)**：
@@ -232,7 +232,7 @@ v1.0.0 — First release:
 - Smart composition hints
 - 100% on-device — your photos never leave your phone
 
-Feedback welcome: support@shootassist.app
+Feedback welcome: zachary.x.pku@gmail.com
 ```
 
 ## 14. 截图要求（iPhone 6.9" + 6.5"）
@@ -264,7 +264,7 @@ Feedback welcome: support@shootassist.app
 - 姓：Xu
 - 地址：阁主填
 - 电话：阁主填
-- 邮箱：support@shootassist.app
+- 邮箱：zachary.x.pku@gmail.com
 
 勾选：**Display trader contact information** 选 **Yes**
 
@@ -276,8 +276,8 @@ Feedback welcome: support@shootassist.app
 - [ ] AppIcon 1024x1024 无透明通道（已 PASS）
 - [ ] Info.plist 5 项隐私字符串齐全（已 PASS）
 - [ ] `scripts/verify_no_storekit_in_release.sh` 输出为空
-- [ ] 隐私政策 URL 已部署到 shootassist.app/privacy.html
-- [ ] 用户协议 URL 已部署到 shootassist.app/terms.html
+- [ ] 隐私政策 URL 已部署到 zacharyxpku-boop.github.io/ShootAssist/privacy.html
+- [ ] 用户协议 URL 已部署到 zacharyxpku-boop.github.io/ShootAssist/terms.html
 - [ ] 至少 3 张 6.9" 截图已上传
 - [ ] 内购商品（3 个 SKU）已在 App Store Connect 创建并通过审核
 - [ ] 预置兑换码 REVIEW7D 已在 ReferralManager 里加白名单

@@ -240,7 +240,7 @@ struct PaywallView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.3))
 
-                            Button("隐私政策") { openURL("https://shootassist.app/privacy.html") }
+                            Button("隐私政策") { openURL("https://zacharyxpku-boop.github.io/ShootAssist/privacy.html") }
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.55))
 
@@ -248,7 +248,7 @@ struct PaywallView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.3))
 
-                            Button("服务条款") { openURL("https://shootassist.app/terms.html") }
+                            Button("服务条款") { openURL("https://zacharyxpku-boop.github.io/ShootAssist/terms.html") }
                                 .font(.system(size: 12))
                                 .foregroundColor(.gray.opacity(0.55))
                         }
