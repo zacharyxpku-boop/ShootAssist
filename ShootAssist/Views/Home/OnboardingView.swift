@@ -114,7 +114,7 @@ struct OnboardingView: View {
                                     ))
                                 )
                         }
-                        .accessibilityLabel("开始使用小白快门")
+                        .accessibilityLabel("开始使用小白快拍")
                     }
 
                     Button(action: {

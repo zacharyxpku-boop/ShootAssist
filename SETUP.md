@@ -30,7 +30,7 @@
 
 ### 2.2 创建 App
 1. App Store Connect → 我的 App → + → 新建 App
-2. 平台：iOS，名称：小白快门，Bundle ID：com.shootassist.app
+2. 平台：iOS，名称：小白快拍，Bundle ID：com.shootassist.app
 3. 记录 URL 中的数字 App ID（如 6743XXXXXX）
 
 ### 2.3 填入 App ID

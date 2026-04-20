@@ -3,7 +3,7 @@ import UIKit
 import CoreImage
 
 // MARK: - 视频水印合成服务
-// 录制完成后调用，给视频加上"小白快门制作"水印，返回合成后的临时文件 URL
+// 录制完成后调用，给视频加上"小白快拍制作"水印，返回合成后的临时文件 URL
 
 class VideoWatermarkService {
     static let shared = VideoWatermarkService()
@@ -12,11 +12,11 @@ class VideoWatermarkService {
     /// 给视频添加文字水印
     /// - Parameters:
     ///   - inputURL: 原始视频 URL
-    ///   - label: 水印文字（默认"小白快门制作"）
+    ///   - label: 水印文字（默认"小白快拍制作"）
     ///   - completion: 成功返回合成后 URL，失败返回 nil
     func addWatermark(
         to inputURL: URL,
-        label: String = "小白快门制作",
+        label: String = "小白快拍制作",
         completion: @escaping (URL?) -> Void
     ) {
         Task {

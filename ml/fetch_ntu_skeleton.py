@@ -1,5 +1,5 @@
 """
-fetch_ntu_skeleton.py — 从 NTU RGB+D 骨架数据提取并转换为小白快门格式
+fetch_ntu_skeleton.py — 从 NTU RGB+D 骨架数据提取并转换为小白快拍格式
 NTU RGB+D 60: 25关节 Kinect 骨架，56K序列，60个动作类别
 
 重叠的动作类别映射:
@@ -50,7 +50,7 @@ DATA_DIR = BASE_DIR / 'data' / 'keypoints'
 SEQ_LEN  = 15
 FEAT_DIM = 18
 
-# NTU 动作ID → 小白快门类别
+# NTU 动作ID → 小白快拍类别
 NTU_ACTION_MAP = {
     1:  'neutral',           # drink water
     2:  'neutral',           # eat meal
@@ -164,7 +164,7 @@ def get_action_id(filename: str) -> int | None:
 
 def main():
     print("\n" + "=" * 55)
-    print("  NTU RGB+D → 小白快门 骨架数据转换")
+    print("  NTU RGB+D → 小白快拍 骨架数据转换")
     print("=" * 55)
 
     if not NTU_DIR.exists():

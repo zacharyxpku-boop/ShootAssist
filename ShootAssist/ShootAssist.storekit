@@ -61,12 +61,12 @@
       "id" : "ShootAssistProGroup",
       "localizations" : [
         {
-          "customAppName" : "小白快门",
-          "displayName" : "小白快门 Pro",
+          "customAppName" : "小白快拍",
+          "displayName" : "小白快拍 Pro",
           "lang" : "zh_CN"
         }
       ],
-      "name" : "小白快门 Pro",
+      "name" : "小白快拍 Pro",
       "subscriptions" : [
         {
           "adHocOffers" : [
@@ -87,7 +87,7 @@
           },
           "localizations" : [
             {
-              "description" : "每月订阅小白快门 Pro",
+              "description" : "每月订阅小白快拍 Pro",
               "displayName" : "月度订阅",
               "lang" : "zh_CN"
             }
@@ -117,7 +117,7 @@
           },
           "localizations" : [
             {
-              "description" : "年度订阅小白快门 Pro，相当于每月 4 元",
+              "description" : "年度订阅小白快拍 Pro，相当于每月 4 元",
               "displayName" : "年度订阅",
               "lang" : "zh_CN"
             }

@@ -52,7 +52,7 @@ class ComparisonCardService {
             UIRectFill(CGRect(x: 0, y: photoH, width: cardW, height: 1.5))
 
             // MARK: 匹配度文字
-            let scoreText = "匹配度 \(score)%  ✦  用小白快门拍的同款"
+            let scoreText = "匹配度 \(score)%  ✦  用小白快拍拍的同款"
             let scoreAttrs: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 18, weight: .semibold),
                 .foregroundColor: UIColor(red: 0.24, green: 0.16, blue: 0.18, alpha: 1)
@@ -63,7 +63,7 @@ class ComparisonCardService {
 
             // MARK: 品牌水印 + 邀请码（小红书看到图就能截图记下邀请码进来）
             let code = ReferralManager.getReferralCode()
-            let brandText = "小白快门 App  ·  邀请码 \(code)"
+            let brandText = "小白快拍 App  ·  邀请码 \(code)"
             let brandAttrs: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 13, weight: .medium),
                 .foregroundColor: UIColor(red: 0.54, green: 0.43, blue: 0.46, alpha: 0.9)

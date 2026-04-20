@@ -152,7 +152,7 @@ enum PosePresetCardRenderer {
     /// 底部 400pt 引导区：产品名 + 下载提示 + 邀请码
     private static func drawFooter(in rect: CGRect, referralCode: String) {
         // 产品线 26pt 粗体
-        let appLine = "小白快门 AI 帮你拍" as NSString
+        let appLine = "小白快拍 AI 帮你拍" as NSString
         let appAttrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 36, weight: .bold),
             .foregroundColor: UIColor(hex: "2B1810")
@@ -164,7 +164,7 @@ enum PosePresetCardRenderer {
         )
 
         // 下载提示 18pt 灰
-        let dlLine = "扫码或搜「小白快门」下载" as NSString
+        let dlLine = "扫码或搜「小白快拍」下载" as NSString
         let dlAttrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 24, weight: .regular),
             .foregroundColor: UIColor(hex: "8A6F65")
@@ -213,7 +213,7 @@ enum PosePresetCardRenderer {
 
     /// 底部品牌小字
     private static func drawBrandWatermark(in rect: CGRect) {
-        let brand = "ShootAssist · 小白快门" as NSString
+        let brand = "ShootAssist · 小白快拍" as NSString
         let attrs: [NSAttributedString.Key: Any] = [
             .font: UIFont.systemFont(ofSize: 18, weight: .medium),
             .foregroundColor: UIColor(hex: "C9AFA6")

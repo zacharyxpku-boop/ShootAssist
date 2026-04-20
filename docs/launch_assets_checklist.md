@@ -65,7 +65,7 @@ bash scripts/verify_no_storekit_in_release.sh
 | Key | 文案 | 评级 |
 |---|---|---|
 | CFBundleDevelopmentRegion | `zh-Hans` | PASS — 与 project.yml developmentLanguage 对齐 |
-| NSCameraUsageDescription | 小白快门需要使用相机为您提供实时构图指导和姿势匹配功能 | PASS |
+| NSCameraUsageDescription | 小白快拍需要使用相机为您提供实时构图指导和姿势匹配功能 | PASS |
 | NSMicrophoneUsageDescription | 录制视频时需要使用麦克风同步录入现场声音和配乐，方便后期剪辑 | PASS — 已加「配乐」明确用途 |
 | NSPhotoLibraryAddUsageDescription | 需要将您拍摄的照片和视频保存到相册 | PASS |
 | NSPhotoLibraryUsageDescription | 需要访问相册以导入参考照片或舞蹈视频 | PASS |

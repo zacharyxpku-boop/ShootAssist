@@ -171,7 +171,7 @@ private struct LogoSection: View {
             }
             .offset(y: logoOffset)
 
-            Text("小白快门")
+            Text("小白快拍")
                 .font(.system(size: 22, weight: .bold))
                 .tracking(3)
                 .foregroundStyle(LinearGradient(

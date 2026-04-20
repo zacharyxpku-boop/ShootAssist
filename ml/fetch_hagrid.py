@@ -1,6 +1,6 @@
 """
 fetch_hagrid.py — 从 HaGRID 数据集下载手势图片，用 MediaPipe 提取关键点
-HaGRID: 552K 手势图片，18类。我们只取与小白快门重叠的类别。
+HaGRID: 552K 手势图片，18类。我们只取与小白快拍重叠的类别。
 
 映射关系:
   HaGRID "call"        → 不用
@@ -44,7 +44,7 @@ SEQ_LEN  = 15
 FEAT_DIM = 18
 USED_INDICES = [0, 11, 12, 13, 14, 15, 16, 23, 24]  # 9 joints
 
-# HaGRID 类别 → 小白快门类别映射
+# HaGRID 类别 → 小白快拍类别映射
 HAGRID_MAP = {
     'no_gesture': 'neutral',
     'stop':       'hands_on_hips',
@@ -139,7 +139,7 @@ def download_hagrid_subset():
 # ── 主流程 ──────────────────────────────────────────
 def main():
     print("\n" + "=" * 55)
-    print("  HaGRID → 小白快门 数据转换")
+    print("  HaGRID → 小白快拍 数据转换")
     print("=" * 55)
 
     # Step 1: 确保有图片

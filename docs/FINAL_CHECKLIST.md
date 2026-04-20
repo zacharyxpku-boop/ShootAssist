@@ -47,7 +47,7 @@
 
 ## 步骤五 · App Store Connect 填字
 
-进 https://appstoreconnect.apple.com → 小白快门 → App Store 标签 → 1.0.0 版本
+进 https://appstoreconnect.apple.com → 小白快拍 → App Store 标签 → 1.0.0 版本
 
 按 `docs/app_store_metadata.md` 的 16 段逐段粘贴：
 - 名称 / 副标题 / 推广文本 / 描述 / 关键词（第 1-5 段）

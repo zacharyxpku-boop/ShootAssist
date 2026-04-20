@@ -313,7 +313,7 @@ private struct PermissionDeniedOverlay: View {
         VStack(spacing: 16) {
             Image(systemName: "camera.fill").font(.system(size: 40)).foregroundColor(.gray)
             Text("需要相机权限").font(.system(size: 16, weight: .medium)).foregroundColor(.white)
-            Text("请在设置中允许小白快门访问相机")
+            Text("请在设置中允许小白快拍访问相机")
                 .font(.system(size: 13)).foregroundColor(.gray)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

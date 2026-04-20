@@ -55,7 +55,7 @@ struct PaywallView: View {
                                     .font(.system(size: 46))
                             }
 
-                            Text("小白快门 Pro")
+                            Text("小白快拍 Pro")
                                 .font(.system(size: 26, weight: .bold))
                                 .foregroundStyle(LinearGradient(
                                     colors: [Color(hex: "FF5A7E"), Color(hex: "FF8C42")],
@@ -117,7 +117,7 @@ struct PaywallView: View {
 
                             ProFeatureRow(emoji: "🚀",
                                           title: "新功能第一个用",
-                                          subtitle: "视频录制完自动加「小白快门」水印\n后续新功能首发 Pro 专享")
+                                          subtitle: "视频录制完自动加「小白快拍」水印\n后续新功能首发 Pro 专享")
                         }
                         .background(
                             RoundedRectangle(cornerRadius: 16)

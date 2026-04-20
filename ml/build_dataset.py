@@ -79,7 +79,7 @@ def report():
 
 def main():
     print("=" * 55)
-    print("  小白快门 — 一键构建训练数据集")
+    print("  小白快拍 — 一键构建训练数据集")
     print("=" * 55)
 
     # Step 1: 合成数据（最快，零依赖）
