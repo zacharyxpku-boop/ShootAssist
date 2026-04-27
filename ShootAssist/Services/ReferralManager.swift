@@ -69,8 +69,22 @@ final class ReferralManager {
     ///
     /// - TODO: 上线云端后，被邀请人兑换成功需回调邀请人端 grantTrial(days: 7) 实现双向奖励；
     ///   当前无后端，邀请人只能通过本机 referral_count 看到「多少朋友用了我的码」。
+    /// App Review 审核员白名单码。
+    /// - 这些码绕开格式校验、一机一次、自邀拦截，直接发放 7 天 Pro 试用。
+    /// - 必须和 docs/app_store_metadata.md 的 App Review Notes 完全一致，否则 2.1 拒审。
+    private static let reviewBypassCodes: Set<String> = ["SA-REVIEW", "REVIEW7D"]
+
     func redeem(code: String, subManager: SubscriptionManager) -> RedeemResult {
         let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+
+        // 0. 审核员 / 内测白名单：最高优先级，绕过所有校验
+        if Self.reviewBypassCodes.contains(normalized) {
+            UserDefaults.standard.set(true, forKey: "has_redeemed_code")
+            UserDefaults.standard.set(normalized, forKey: "redeemed_code")
+            subManager.grantTrial(days: 7)
+            Analytics.track(Analytics.Event.referralRedeemed, properties: ["code": normalized, "bypass": true])
+            return .success
+        }
 
         // 1. 格式校验：SA- 开头 + 6 位字母数字
         guard isValidFormat(normalized) else {

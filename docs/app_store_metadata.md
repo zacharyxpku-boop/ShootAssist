@@ -39,7 +39,7 @@ Copy poses, get killer shots
 
 **中文简体**：
 ```
-上传喜欢的照片 → App 提取姿势轮廓 → 相机里叠加半透明剪影 → 让朋友对着剪影拍。两秒学会任何小红书同款构图。新增爆款姿势库：咖啡馆/街拍/旅行/情侣 6 类 30 款。
+上传喜欢的照片，App 提取姿势轮廓，相机里叠加半透明剪影，让朋友对着剪影拍。两秒学会任何小红书同款构图。新增爆款姿势库：咖啡馆、街拍、旅行、情侣 6 类 30 款。
 ```
 
 **English (U.S.)**：
@@ -124,7 +124,7 @@ PRO SUBSCRIPTION
 - Monthly: $2.99/mo (7-day free trial)
 - Yearly: $14.99/yr (save 63%)
 - Lifetime: $29.99 one-time
-Subscriptions auto-renew. Manage or cancel anytime in Settings → Apple ID → Subscriptions. Cancel during the trial to avoid charges.
+Subscriptions auto-renew. Manage or cancel anytime in Settings -> Apple ID -> Subscriptions. Cancel during the trial to avoid charges.
 
 Terms of Use: https://zacharyxpku-boop.github.io/ShootAssist/terms.html
 ```
@@ -181,9 +181,9 @@ https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 审核同学好，这是一款拍照辅助工具，核心功能是把用户选的照片提取人物轮廓作为相机叠加参考。
 
 关键测试路径：
-1. 首页点「拍同款」 → 从相册选任意照片 → 相机画面会叠加半透明姿势剪影 → 可以拖拽/捏合缩放剪影
-2. 首页点「爆款姿势」 → 浏览 30 个预设姿势 → 点任一姿势进入详情 → 点「用这个姿势拍」直接进入相机
-3. 首页点「视频模式」 → 可选导入参考视频到画中画
+1. 首页点「拍同款」 -> 从相册选任意照片 -> 相机画面会叠加半透明姿势剪影 -> 可以拖拽/捏合缩放剪影
+2. 首页点「爆款姿势」 -> 浏览 30 个预设姿势 -> 点任一姿势进入详情 -> 点「用这个姿势拍」直接进入相机
+3. 首页点「视频模式」 -> 可选导入参考视频到画中画
 
 订阅入口：
 - 免费用户每天可拍 3 次拍同款，超出会触发付费墙
@@ -191,7 +191,7 @@ https://zacharyxpku-boop.github.io/ShootAssist/privacy.html
 
 不需要任何登录账号和服务器交互。姿势识别全部走设备端 Vision 框架。
 
-如果审核同学需要跳过额度限制直接体验付费功能，可以在启动后进入「设置 → 兑换邀请码」输入：SA-REVIEW（任意合法邀请码都能直接解锁 7 天 Pro 试用）。
+如果审核同学需要跳过额度限制直接体验付费功能，可以在启动后进入「设置 -> 兑换邀请码」输入：SA-REVIEW（任意合法邀请码都能直接解锁 7 天 Pro 试用）。
 
 联系方式：zachary.x.pku@gmail.com
 ```

@@ -34,19 +34,8 @@ struct HomeView: View {
                     VStack(spacing: 0) {
                         Spacer().frame(height: 50)
 
-                        // Logo + Pro 状态
-                        ZStack(alignment: .topTrailing) {
-                            LogoSection(logoOffset: logoOffset)
-                            if subManager.isPro {
-                                ProBadgePill(label: "Pro ✓", isPro: true).offset(x: 8, y: 0)
-                            } else {
-                                Button(action: { showPaywall = true }) {
-                                    ProBadgePill(label: "升级 Pro", isPro: false)
-                                }
-                                .accessibilityLabel("升级到 Pro 版")
-                                .offset(x: 8, y: 0)
-                            }
-                        }
+                        // Logo（v1.0 全员免费，不再展示 Pro pill）
+                        LogoSection(logoOffset: logoOffset)
 
                         Spacer().frame(height: 20)
 
