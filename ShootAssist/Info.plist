@@ -30,6 +30,10 @@
 	<string>录制视频时需要使用麦克风同步录入现场声音和配乐，方便后期剪辑</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>需要将您拍摄的照片和视频保存到相册</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>选择相册中的照片作为拍同款的参考图，照片仅用于本地姿势识别，不会上传服务器</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>导入参考视频时，在本地识别歌词用于自动生成口型字幕，语音不会上传到服务器</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
