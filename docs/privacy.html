@@ -83,12 +83,18 @@
 </ul>
 <p>卸载 App 时，以上所有本地数据随 iOS 系统机制一并删除。</p>
 
-<h2>5. 第三方服务</h2>
-<p>本 App<strong>不集成任何第三方 SDK</strong>（无 Firebase、Mixpanel、友盟、神策、Google Analytics 等）。仅依赖 Apple 提供的系统服务：</p>
+<h2>5. 第三方服务与 AI 服务</h2>
+<p>本 App <strong>不集成任何第三方 SDK，也不调用任何第三方 AI 服务</strong>。具体而言：</p>
 <ul>
-  <li><strong>Apple StoreKit 2</strong>：处理订阅购买、价格展示、恢复购买。受 Apple 隐私政策约束。</li>
-  <li><strong>Apple Speech Recognition</strong>：仅使用本地设备识别模式（on-device），不调用 Apple 云端识别。</li>
-  <li><strong>Apple Photos</strong>：相册读写，受系统权限管控。</li>
+  <li>不使用 OpenAI、Anthropic Claude、Google Gemini、DeepSeek、百度文心、阿里通义、腾讯混元等任何云端 AI/LLM 服务</li>
+  <li>不集成 Firebase、Mixpanel、Google Analytics、友盟、神策等任何分析 / 埋点 SDK</li>
+  <li>不集成任何广告 SDK、推送 SDK、社交分享 SDK</li>
+</ul>
+<p>所有"智能"功能——人体姿势识别、构图分析、语音识别——均由 <strong>Apple 自家系统框架在你的 iPhone 本地运算</strong>。照片、视频、音频数据不离开你的设备，也不发送给任何第三方：</p>
+<ul>
+  <li><strong>Apple Vision Framework</strong>（设备端运算）：人体骨架检测、构图分析。</li>
+  <li><strong>Apple Speech Recognition</strong>（仅 on-device 模式）：导入视频时识别歌词生成字幕。</li>
+  <li><strong>Apple Photos</strong>：相册读写，受 iOS 系统权限管控。</li>
 </ul>
 
 <h2>6. 儿童隐私</h2>
@@ -168,11 +174,17 @@
 </ul>
 <p>Uninstalling the app removes all of the above per standard iOS behavior.</p>
 
-<h2>5. Third-Party Services</h2>
-<p>The app integrates <strong>no third-party SDKs</strong> (no Firebase, Mixpanel, Google Analytics, etc.). Only Apple system services are used:</p>
+<h2>5. Third-Party & AI Services</h2>
+<p>The app integrates <strong>no third-party SDKs and calls no third-party AI service whatsoever</strong>. Specifically:</p>
 <ul>
-  <li><strong>Apple StoreKit 2</strong>: subscription purchase, pricing, restore. Governed by Apple's privacy policy.</li>
-  <li><strong>Apple Speech Recognition</strong>: on-device mode only; the Apple cloud path is not invoked.</li>
+  <li>No OpenAI, Anthropic Claude, Google Gemini, DeepSeek, Baidu, Alibaba, Tencent, or any cloud-based AI/LLM service is used</li>
+  <li>No analytics SDKs (no Firebase, Mixpanel, Google Analytics, AppsFlyer, etc.)</li>
+  <li>No advertising, push, or social-sharing SDKs</li>
+</ul>
+<p>All "intelligent" features — pose detection, framing analysis, speech recognition — run <strong>on-device using Apple's own system frameworks</strong>. Your photos, videos, and audio never leave your iPhone and are never transmitted to any third party:</p>
+<ul>
+  <li><strong>Apple Vision Framework</strong> (on-device): body pose skeleton detection and framing analysis.</li>
+  <li><strong>Apple Speech Recognition</strong> (on-device mode only): lyric detection for lip-sync captions when you import a video.</li>
   <li><strong>Apple Photos</strong>: system-mediated read/write under your permission.</li>
 </ul>
 
